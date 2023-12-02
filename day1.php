@@ -17,7 +17,7 @@ while (($line = fgets($fp)) !== false) {
 
     $matches = [];
     preg_match_all(
-        '/1|2|3|4|5|6|7|8|9|on(?=e)|tw(?=o)|thre(?=e)|four|fiv(?=e)|six|seve(?=n)|eigh(?=t)|nin(?=e)/',
+        '/[1-9]|on(?=e)|tw(?=o)|thre(?=e)|four|fiv(?=e)|six|seve(?=n)|eigh(?=t)|nin(?=e)/',
         $line,
         $matches,
     );
