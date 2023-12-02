@@ -13,7 +13,7 @@ while (($line = fgets($fp)) !== false) {
     $digits = preg_replace('/[^0-9]/', '', $line);
 
     $number = $digits[0] . $digits[strlen($digits) - 1];
-    $sumWrong += (int) $number;
+    $sumWrong += (int)$number;
 
     $matches = [];
     preg_match_all(
@@ -22,11 +22,11 @@ while (($line = fgets($fp)) !== false) {
         $matches,
     );
 
-    $digits = array_map ('mapDigit', $matches[0]);
+    $digits = array_map('mapDigit', $matches[0]);
     $number = reset($digits) * 10 + end($digits);
 
     $calibrationValues .= $number . PHP_EOL;
-    $sumRight += (int) $number;
+    $sumRight += (int)$number;
 }
 
 print('CALIBRATION_VALUES:' . PHP_EOL . $calibrationValues . PHP_EOL . 'WRONG SUM:' . PHP_EOL . $sumWrong . PHP_EOL . 'SUM:' . PHP_EOL . $sumRight . PHP_EOL);
@@ -43,6 +43,6 @@ function mapDigit(string $val): int
         'seve' => 7,
         'eigh' => 8,
         'nin' => 9,
-        default => (int) $val,
+        default => (int)$val,
     };
 }

@@ -27,9 +27,9 @@ while (($line = fgets($fp)) !== false) {
     list($line, $id, $subsets) = $matches;
 
     if (areSubsetsValid($subsets)) {
-        $validIds[] = (int) $id;
+        $validIds[] = (int)$id;
     } else {
-        $invalidIds[] = (int) $id;
+        $invalidIds[] = (int)$id;
     }
 
     $powers[] = getPower($subsets);
@@ -40,6 +40,7 @@ var_dump('VALID IDS:', $validIds, 'INVALID IDS:', $invalidIds, 'VALID SUM:', arr
 function areSubsetsValid(string $strSubsets): bool
 {
     $subsets = explode(';', $strSubsets);
+
     foreach ($subsets as $subset) {
         if (
             !isSubsetValid('red', $subset, MAX_RED)
@@ -52,12 +53,13 @@ function areSubsetsValid(string $strSubsets): bool
 
     return true;
 }
+
 function isSubsetValid(string $color, string $subset, int $max): bool
 {
     $matches = [];
     preg_match("/([0-9]+) $color/i", $subset, $matches);
 
-    if (2 === count($matches) && ((int) $matches[1] > $max)) {
+    if (2 === count($matches) && ((int)$matches[1] > $max)) {
         return false;
     }
 
@@ -77,6 +79,7 @@ function getMinColor(string $subsets, string $color): int
 {
     $matches = [];
     preg_match_all("/([0-9]+) $color/i", $subsets, $matches);
+
     if (2 !== count($matches)) {
         return 0;
     }
