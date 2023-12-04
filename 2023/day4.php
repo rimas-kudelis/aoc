@@ -25,16 +25,12 @@ echo 'Total points: ' . array_sum($cardPoints) . PHP_EOL;
 
 $cardAmounts = array_fill(0, count($cards), 1);
 foreach ($cards as $cardIndex => $card) {
-    $thisCardAmount = $cardAmounts[$cardIndex];
-
     for ($i = 1; $i <= $card->matches; $i++) {
         if (isset($cardAmounts[$cardIndex + $i])) {
-            $cardAmounts[$cardIndex + $i] += $thisCardAmount;
+            $cardAmounts[$cardIndex + $i] += $cardAmounts[$cardIndex];
         }
     }
 }
-
-var_dump($cardAmounts);
 
 echo 'Total cards: ' . array_sum($cardAmounts) . PHP_EOL;
 
