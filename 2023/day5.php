@@ -9,17 +9,20 @@ const STATE_LIGHT_TO_TEMPERATURE = 'ltt';
 const STATE_TEMPERATURE_TO_HUMIDITY = 'tth';
 const STATE_HUMIDITY_TO_LOCATION = 'htl';
 
-const MAP_DATA_OFFSET = 'offset';
-const MAP_DATA_LENGTH = 'length';
-
 $fp = fopen(__DIR__ . '/input/day5.txt', 'r');
 
 if (false === $fp) {
     throw new RuntimeException('Could not open input file!');
 }
 
-$seeds = [];
-$seedToSoilMapData = $soilToFertilizerMapData = $fertilizerToWaterMapData = $waterToLightMapData = $lightToTemperatureMapData = $temperatureToHumidityMapData = $humidityToLocationMapData = [];
+$seedNumbers = [];
+$seedToSoilMapper = new NumberMapper();
+$soilToFertilizerMapper = new NumberMapper();
+$fertilizerToWaterMapper = new NumberMapper();
+$waterToLightMapper = new NumberMapper();
+$lightToTemperatureMapper = new NumberMapper();
+$temperatureToHumidityMapper = new NumberMapper();
+$humidityToLocationMapper = new NumberMapper();
 
 $state = STATE_NONE;
 while (false !== ($line = fgets($fp))) {
@@ -30,7 +33,8 @@ while (false !== ($line = fgets($fp))) {
     }
 
     if (str_starts_with($line, 'seeds: ')) {
-        $seeds = parseSeeds($line);
+        $seedNumbers = parseSeedNumbers($line);
+
         continue;
     }
 
@@ -73,118 +77,204 @@ while (false !== ($line = fgets($fp))) {
         throw new RuntimeException('Unexpected line: ' . $line);
     }
 
-    switch($state) {
+    switch ($state) {
         case STATE_SEED_TO_SOIL:
-            addToMapData($seedToSoilMapData, $line);
+            applyRangeLineToMapper($line, $seedToSoilMapper);
             break;
         case STATE_SOIL_TO_FERTILIZER:
-            addToMapData($soilToFertilizerMapData, $line);
+            applyRangeLineToMapper($line, $soilToFertilizerMapper);
             break;
         case STATE_FERTILIZER_TO_WATER:
-            addToMapData($fertilizerToWaterMapData, $line);
+            applyRangeLineToMapper($line, $fertilizerToWaterMapper);
             break;
         case STATE_WATER_TO_LIGHT:
-            addToMapData($waterToLightMapData, $line);
+            applyRangeLineToMapper($line, $waterToLightMapper);
             break;
         case STATE_LIGHT_TO_TEMPERATURE:
-            addToMapData($lightToTemperatureMapData, $line);
+            applyRangeLineToMapper($line, $lightToTemperatureMapper);
             break;
         case STATE_TEMPERATURE_TO_HUMIDITY:
-            addToMapData($temperatureToHumidityMapData, $line);
+            applyRangeLineToMapper($line, $temperatureToHumidityMapper);
             break;
         case STATE_HUMIDITY_TO_LOCATION:
-            addToMapData($humidityToLocationMapData, $line);
+            applyRangeLineToMapper($line, $humidityToLocationMapper);
             break;
         default:
             throw new RuntimeException('Unexpected state: ' . $state);
     }
 }
 
-$seedToSoilMap = getOffsetMap($seedToSoilMapData);
-$soilToFertilizerMap = getOffsetMap($soilToFertilizerMapData);
-$fertilizerToWaterMap = getOffsetMap($fertilizerToWaterMapData);
-$waterToLightMap = getOffsetMap($waterToLightMapData);
-$lightToTemperatureMap = getOffsetMap($lightToTemperatureMapData);
-$temperatureToHumidityMap = getOffsetMap($temperatureToHumidityMapData);
-$humidityToLocationMap = getOffsetMap($humidityToLocationMapData);
+$seedToLocationMapper = $seedToSoilMapper->combine(
+    $soilToFertilizerMapper->combine(
+        $fertilizerToWaterMapper->combine(
+            $waterToLightMapper->combine(
+                $lightToTemperatureMapper->combine(
+                    $temperatureToHumidityMapper->combine($humidityToLocationMapper)
+                )
+            )
+        )
+    )
+);
 
 $lowestLocationNumber = PHP_INT_MAX;
-foreach ($seeds as $seedNumber) {
-    $locationNumber = mapNumber(
-        mapNumber(
-            mapNumber(
-                mapNumber(
-                    mapNumber(
-                        mapNumber(
-                            mapNumber($seedNumber, $seedToSoilMap),
-                            $soilToFertilizerMap,
-                        ),
-                        $fertilizerToWaterMap,
-                    ),
-                    $waterToLightMap,
-                ),
-                $lightToTemperatureMap,
-            ),
-            $temperatureToHumidityMap,
-        ),
-        $humidityToLocationMap,
-    );
+$checked = 0;
 
-    $lowestLocationNumber = min($locationNumber, $lowestLocationNumber);
+foreach ($seedNumbers as $seedNumber) {
+    $lowestLocationNumber = min($lowestLocationNumber, $seedToLocationMapper->map($seedNumber));
+    $checked++;
 }
 
-var_dump($seeds, $seedToSoilMap, $soilToFertilizerMap, $fertilizerToWaterMap, $waterToLightMap, $lightToTemperatureMap, $temperatureToHumidityMap, $humidityToLocationMap);
+echo 'Lowest location number (part 1): ' . $lowestLocationNumber . PHP_EOL;
+echo 'Numbers checked: ' . $checked . PHP_EOL;
 
-echo 'Lowest location number: ' . $lowestLocationNumber . PHP_EOL;
+$lowestLocationNumber = PHP_INT_MAX;
+$checked = 0;
 
-function parseSeeds(string $line): array
+foreach (getSeedRanges($seedNumbers) as $seedNumber => $seedNumberRangeLength) {
+    $lowestLocationNumber = min($lowestLocationNumber, $seedToLocationMapper->map($seedNumber));
+    $checked++;
+    $maxSeedNumberInRange = $seedNumber + $seedNumberRangeLength - 1;
+
+    foreach ($seedToLocationMapper->getRangeStartNumbers() as $mapRangeStartNumber) {
+        if ($mapRangeStartNumber > $seedNumber && $mapRangeStartNumber <= $maxSeedNumberInRange) {
+            $lowestLocationNumber = min($lowestLocationNumber, $seedToLocationMapper->map($mapRangeStartNumber));
+            $checked++;
+        }
+    }
+}
+
+echo 'Lowest location number (part 2): ' . $lowestLocationNumber . PHP_EOL;
+echo 'Numbers checked: ' . $checked . PHP_EOL;
+
+function parseSeedNumbers(string $line): array
 {
     $seeds = preg_split('/\s+/', trim(substr($line, 6)));
     return castToInts($seeds);
 }
 
-function addToMapData(array &$map, string $line): void
+function applyRangeLineToMapper(string $line, NumberMapper $mapper): void
 {
-    list($destination, $source, $length) = explode(' ', trim($line));
-    $map[$source] = [MAP_DATA_OFFSET => (int)$destination - (int)$source, MAP_DATA_LENGTH => (int)$length];
+    list($targetNumber, $sourceNumber, $rangeLength) = castToInts(explode(' ', trim($line)));
+
+    $mapper->addRange($sourceNumber, $targetNumber, $rangeLength);
 }
 
-function getOffsetMap(array $mapData): array
+/**
+ * Converts an original seed number array from part 1 of the exercise to the
+ * [seed number range start] → [range length] array used for part 2.
+ *
+ * @param int[] $seeds
+ * @return array<int, int>
+ */
+function getSeedRanges(array $seeds): array
 {
-    $lastMappedNumber = -1;
-    ksort($mapData);
-    $normalizedMap = [];
+    $seeds = array_values($seeds);
+    $ranges = [];
 
-    foreach ($mapData as $sourceNumber => $currentMapData) {
-        if ($sourceNumber > $lastMappedNumber) {
-            $normalizedMap[$lastMappedNumber + 1] = 0;
-        }
-
-        $normalizedMap[$sourceNumber] = $currentMapData[MAP_DATA_OFFSET];
-        $lastMappedNumber = $sourceNumber + $currentMapData[MAP_DATA_LENGTH] - 1;
+    for ($key = 1; $key < count ($seeds); $key += 2) {
+        $ranges[$seeds[$key - 1]] = $seeds[$key];
     }
 
-    $normalizedMap[$lastMappedNumber + 1] = 0;
-
-    return $normalizedMap;
+    return $ranges;
 }
 
-function mapNumber(int $number, array $offsetMap): int
-{
-    $lastOffset = 0;
-
-    foreach ($offsetMap as $offsetMapIndex => $offset) {
-        if ($number < $offsetMapIndex) {
-            break;
-        }
-
-        $lastOffset = $offset;
-    }
-
-    return $number + $lastOffset;
-}
-
+/**
+ * @param string[] $strings
+ * @return int[]
+ */
 function castToInts(array $strings): array
 {
-    return array_map(static fn(string $string) => (int) $string, $strings);
+    return array_map(static fn(string $string) => (int)$string, $strings);
+}
+
+class NumberMapper
+{
+    /** @var array<int, int> */
+    private array $offsetMap = [0 => 0];
+
+    /** @var array<int, int> */
+    private array $reverseOffsetMap = [0 => 0];
+
+    /**
+     * Adds a range to the mapper config. $rangeLength = 0 (default) causes only the start of the range to be
+     * configured, meaning this range is either open-ended, or is ended by another explicitly configured range.
+     * Note: range conflicts (intersections) are not prevented.
+     */
+    public function addRange(int $sourceNumber, int $targetNumber, int $rangeLength = 0): void
+    {
+        $this->addRangeToMap($this->offsetMap, $sourceNumber, $targetNumber, $rangeLength);
+        $this->addRangeToMap($this->reverseOffsetMap, $targetNumber, $sourceNumber, $rangeLength);
+    }
+
+    public function map(int $sourceNumber): int
+    {
+        return $this->doMap($sourceNumber, $this->offsetMap);
+    }
+
+    /** @return int[] */
+    public function getRangeStartNumbers(): array
+    {
+        return array_keys($this->offsetMap);
+    }
+
+    public function combine(self $nextMap): self
+    {
+        $rangeStartNumbers = $this->getRangeStartNumbers();
+        $nextMapRangeStartNumbers = $nextMap->getRangeStartNumbers();
+
+        foreach ($nextMapRangeStartNumbers as $nextMapRangeStartNumber) {
+            $rangeStartNumbers[] = $this->reverseMap($nextMapRangeStartNumber);
+        }
+
+        $rangeStartNumbers = array_unique($rangeStartNumbers);
+        sort($rangeStartNumbers);
+
+        $combinedMap = new self();
+        foreach ($rangeStartNumbers as $rangeStartNumber) {
+            $combinedMap->addRange($rangeStartNumber, $nextMap->map($this->map($rangeStartNumber)));
+        }
+
+        return $combinedMap;
+    }
+
+    private function reverseMap(int $targetNumber): int
+    {
+        return $this->doMap($targetNumber, $this->reverseOffsetMap);
+    }
+
+    /**
+     * Add a [range start number] → [number offset] mapping to the given offset map.
+     * If $rangeLength > 0 and there is no subsequent range configured right after the end of this one,
+     * this method also configures that subsequent range with the offset of 0.
+     */
+    private function addRangeToMap(array &$map, int $sourceNumber, int $targetNumber, int $rangeLength): void
+    {
+        if (0 > $rangeLength) {
+            throw new InvalidArgumentException('$rangeLength must be a non-negative number, got ' . $rangeLength);
+        }
+
+        $map[$sourceNumber] = $targetNumber - $sourceNumber;
+        $nextNumber = $sourceNumber + $rangeLength;
+
+        if (!isset($map[$nextNumber])) {
+            $map[$nextNumber] = 0;
+        }
+
+        ksort($map);
+    }
+
+    private function doMap(int $number, array $map): int
+    {
+        $lastOffset = 0;
+
+        foreach ($map as $rangeStart => $offset) {
+            if ($rangeStart > $number) {
+                break;
+            }
+
+            $lastOffset = $offset;
+        }
+
+        return $number + $lastOffset;
+    }
 }
