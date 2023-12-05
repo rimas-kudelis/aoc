@@ -104,17 +104,13 @@ while (false !== ($line = fgets($fp))) {
     }
 }
 
-$seedToLocationMapper = $seedToSoilMapper->combine(
-    $soilToFertilizerMapper->combine(
-        $fertilizerToWaterMapper->combine(
-            $waterToLightMapper->combine(
-                $lightToTemperatureMapper->combine(
-                    $temperatureToHumidityMapper->combine($humidityToLocationMapper)
-                )
-            )
-        )
-    )
-);
+$seedToLocationMapper = $seedToSoilMapper
+    ->combine($soilToFertilizerMapper)
+    ->combine($fertilizerToWaterMapper)
+    ->combine($waterToLightMapper)
+    ->combine($lightToTemperatureMapper)
+    ->combine($temperatureToHumidityMapper)
+    ->combine($humidityToLocationMapper);
 
 $lowestLocationNumber = PHP_INT_MAX;
 $checked = 0;
