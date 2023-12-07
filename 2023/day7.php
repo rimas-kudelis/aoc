@@ -21,29 +21,26 @@ if (false === $fp) {
 }
 
 $handsAndBids = [];
+
 while (!in_array($line = fgets($fp), [false, "\n"])) {
     $handsAndBids[] = explode(' ', trim($line));
 }
-$printed = [];
 
-usort($handsAndBids, static fn(array $handAndBid1, array $handAndBid2): int => compareHands($handAndBid1[0], $handAndBid2[0]));
+echo 'Total winnings (part 1): ' . getTotalWinnings($handsAndBids) . PHP_EOL;
+echo 'Total winnings (part 2): ' . getTotalWinnings($handsAndBids, true) . PHP_EOL;
 
-$totalWinnings = 0;
-foreach ($handsAndBids as $rank => $handAndBid) {
-    $totalWinnings += ($rank + 1) * $handAndBid[1];
+function getTotalWinnings(array $handsAndBids, bool $jacksAsJokers = false): int
+{
+    usort($handsAndBids, static fn(array $handAndBid1, array $handAndBid2): int => compareHands($handAndBid1[0], $handAndBid2[0], $jacksAsJokers));
+
+    $totalWinnings = 0;
+
+    foreach ($handsAndBids as $rank => $handAndBid) {
+        $totalWinnings += ($rank + 1) * $handAndBid[1];
+    }
+
+    return $totalWinnings;
 }
-
-echo 'Total winnings (part 1): ' . $totalWinnings . PHP_EOL;
-
-usort($handsAndBids, static fn(array $handAndBid1, array $handAndBid2): int => compareHands($handAndBid1[0], $handAndBid2[0], true));
-
-$totalWinnings = 0;
-foreach ($handsAndBids as $rank => $handAndBid) {
-    $totalWinnings += ($rank + 1) * $handAndBid[1];
-}
-
-
-echo 'Total winnings (part 2): ' . $totalWinnings . PHP_EOL;
 
 function compareHands(string $hand1, string $hand2, bool $jacksAsJokers = false): int
 {
@@ -59,21 +56,22 @@ function compareHands(string $hand1, string $hand2, bool $jacksAsJokers = false)
 
     for ($i = 0; $i <= 4; $i++) {
         if ($cards1[$i] !== $cards2[$i]) {
-            $rank1 = strpos($jacksAsJokers ? CARD_RANKS_WITH_JOKER : CARD_RANKS_DEFAULT, $cards1[$i]);
-            if (false === $rank1) {
-                throw new RuntimeException(sprintf('Invalid card: "%s".', $cards1[$i]));
-            }
-
-            $rank2 = strpos($jacksAsJokers ? CARD_RANKS_WITH_JOKER : CARD_RANKS_DEFAULT, $cards2[$i]);
-            if (false === $rank2) {
-                throw new RuntimeException(sprintf('Invalid card: "%s".', $cards2[$i]));
-            }
-
-            return $rank1 <=> $rank2;
+            return getCardRank($cards1[$i], $jacksAsJokers) <=> getCardRank($cards2[$i], $jacksAsJokers);
         }
     }
 
     return 0;
+}
+
+function getCardRank(string $card, bool $jacksAsJokers = false): int
+{
+    $rank = strpos($jacksAsJokers ? CARD_RANKS_WITH_JOKER : CARD_RANKS_DEFAULT, $card);
+
+    if (false === $rank) {
+        throw new RuntimeException(sprintf('Invalid card: "%s".', $card));
+    }
+
+    return $rank;
 }
 
 function getHandType(string $hand, bool $jacksAsJokers = false): HandType
@@ -83,48 +81,30 @@ function getHandType(string $hand, bool $jacksAsJokers = false): HandType
     }
 
     $valueCounts = array_count_values(str_split($hand));
-
-    $jokers = 0;
+    arsort($valueCounts);
 
     if ($jacksAsJokers && isset($valueCounts['J'])) {
         $jokers = $valueCounts['J'];
-        unset ($valueCounts['J']);
-    }
 
-    $valueCountCounts = array_count_values($valueCounts);
-
-    if (1 >= count($valueCounts)) {
-        // We only have jokers and/or at most one other rank in our hand
-        return HandType::FiveOfAKind;
-    }
-
-    if (in_array(4 - $jokers, $valueCounts)) {
-        return HandType::FourOfAKind;
-    }
-
-    // We have at most two jokers beyond this point
-
-    if (in_array(3 - $jokers, $valueCounts)) {
-        // For a Full house, we need 3 + 2 or two pairs and a joker. 3 + 1 and two jokers is a Four of a kind.
-        if (1 + $jokers === ($valueCountCounts[2] ?? 0)) {
-            return HandType::FullHouse;
+        if (5 === $jokers) {
+            return HandType::FiveOfAKind;
         }
 
-        return HandType::ThreeOfAKind;
+        unset ($valueCounts['J']);
+        $valueCounts[array_key_first($valueCounts)] += $jokers;
     }
 
-    // We have at most one joker beyond this point
-
-    if (2 === ($valueCountCounts[2] ?? 0)) {
-        // Using a joker to build Two pairs doesn't make sense, because Three of a kind is a better option.
-        // Thus, not even testing $jokers here.
-        return HandType::TwoPair;
-    }
-
-    if (1 === $jokers || 1 === ($valueCountCounts[2] ?? 0)) {
-        return HandType::OnePair;
-    }
-
-    // No jokers, no pairs. Bad luck.
-    return HandType::HighCard;
+    return match (array_shift($valueCounts)) {
+        5 => HandType::FiveOfAKind,
+        4 => HandType::FourOfAKind,
+        3 => match (array_shift($valueCounts)) {
+            2 => HandType::FullHouse,
+            1 => HandType::ThreeOfAKind,
+        },
+        2 => match (array_shift($valueCounts)) {
+            2 => HandType::TwoPair,
+            1 => HandType::OnePair,
+        },
+        1 => HandType::HighCard,
+    };
 }
