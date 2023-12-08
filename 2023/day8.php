@@ -3,8 +3,8 @@
 const NODE_START = 'AAA';
 const NODE_END = 'ZZZ';
 
-const GHOST_NODE_START = 'A';
-const GHOST_NODE_END = 'Z';
+const CHAR_STARTING_NODE = 'A';
+const CHAR_ENDING_NODE = 'Z';
 
 const LEFT = 'L';
 
@@ -13,6 +13,8 @@ $fp = fopen(__DIR__ . '/input/day8.txt', 'r');
 if (false === $fp) {
     throw new RuntimeException('Could not open input file!');
 }
+
+$stepCounterCache = [];
 
 $instructions = readInstructions($fp);
 $nodes = readNodes($fp);
@@ -62,7 +64,7 @@ function countSteps(array $instructions, array $nodes): int
 
     while (true) {
         foreach ($instructions as $instruction) {
-            $currentNode = $instruction === LEFT ? $nodes[$currentNode][0] : $nodes[$currentNode][1];
+            $currentNode = getNextNode($nodes[$currentNode], $instruction);
             ++$steps;
 
             if (NODE_END === $currentNode) {
@@ -74,31 +76,75 @@ function countSteps(array $instructions, array $nodes): int
 
 function countGhostSteps(array $instructions, array $nodes): int
 {
-    $steps = 0;
     $currentNodes = array_filter(
         array_keys($nodes),
-        static fn(string $node) => str_ends_with($node, GHOST_NODE_START),
+        static fn(string $node) => str_ends_with($node, CHAR_STARTING_NODE),
     );
+
+    $endingNodesToSteps = [];
+    foreach ($currentNodes as $currentNode) {
+        $endingNodeAndSteps = getEndingNodeAndSteps($instructions, $nodes, $currentNode);
+        $endingNodesToSteps[$endingNodeAndSteps[0]] = $endingNodeAndSteps[1];
+    }
+
+    $currentMaxSteps = max($endingNodesToSteps);
+
+    while (true) {
+        $maxStepsUpdated = false;
+
+        foreach ($endingNodesToSteps as $endingNode => &$steps) {
+            while ($steps < $currentMaxSteps) {
+                $steps += getStepsToNextEndingNode($instructions, $nodes, $endingNode, $steps);
+                $maxStepsUpdated = true;
+            }
+
+            $currentMaxSteps = $steps;
+        }
+
+        if (!$maxStepsUpdated) {
+            return $currentMaxSteps;
+        }
+    }
+}
+
+function getNextNode(array $node, string $instruction): string
+{
+    return $instruction === LEFT ? $node[0] : $node[1];
+}
+
+function getEndingNodeAndSteps(array $instructions, array $nodes, string $node, int $skipSteps = 0): array
+{
+    $steps = 0;
 
     while (true) {
         foreach ($instructions as $instruction) {
-            $allNodesFinal = true;
-
-            ++$steps;
-
-            foreach ($currentNodes as &$currentNode) {
-                $currentNode = $instruction === LEFT ? $nodes[$currentNode][0] : $nodes[$currentNode][1];
-
-                $allNodesFinal = $allNodesFinal && str_ends_with($currentNode, GHOST_NODE_END);
+            if (0 < $skipSteps--) {
+                continue;
             }
 
-            if ($allNodesFinal) {
-                return $steps;
-            }
+            $steps++;
+            $node = getNextNode($nodes[$node], $instruction);
 
-            if (0 === $steps % 10000000) {
-                echo 'P2: ' . $steps . ' steps.' . PHP_EOL;
+            if (str_ends_with($node, CHAR_ENDING_NODE)) {
+                return [$node, $steps];
             }
         }
     }
+}
+
+function getStepsToNextEndingNode(array $instructions, array $nodes, string $node, int $skipSteps = 0): int
+{
+    global $stepCounterCache;
+
+    $skipSteps = $skipSteps % count($instructions);
+    if (!isset($stepCounterCache[$node])) {
+        $stepCounterCache[$node] = [];
+    }
+
+    if (!isset($stepCounterCache[$node][$skipSteps])) {
+        list ($sameNode, $steps) = getEndingNodeAndSteps($instructions, $nodes, $node, $skipSteps);
+        $stepCounterCache[$node][$skipSteps] = $steps;
+    }
+
+    return $stepCounterCache[$node][$skipSteps];
 }
