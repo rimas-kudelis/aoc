@@ -87,6 +87,12 @@ function countGhostSteps(array $instructions, array $nodes): int
         $endingNodesToSteps[$endingNodeAndSteps[0]] = $endingNodeAndSteps[1];
     }
 
+    $instructionsLength = count($instructions);
+
+    if ([] === array_filter($endingNodesToSteps, static fn($steps) => $steps % $instructionsLength !== 0)) {
+        return leastCommonMultipleInArray($endingNodesToSteps);
+    }
+
     $currentMaxSteps = max($endingNodesToSteps);
 
     while (true) {
@@ -147,4 +153,33 @@ function getStepsToNextEndingNode(array $instructions, array $nodes, string $nod
     }
 
     return $stepCounterCache[$node][$skipSteps];
+}
+
+function leastCommonMultipleInArray(array $numbers): int
+{
+    $lcm = array_shift($numbers);
+
+    while (null !== ($number = array_shift($numbers))) {
+        $lcm = leastCommonMultiple($lcm, $number);
+    }
+
+    return $lcm;
+}
+
+function leastCommonMultiple(int $a, int $b): int
+{
+    return $a * $b / greatestCommonDivisor($a, $b);
+}
+
+function greatestCommonDivisor(int $a, int $b): int
+{
+    if ($a > $b) {
+        list($a, $b) = [$b, $a];
+    }
+
+    if (0 === $a) {
+        return $b;
+    }
+
+    return greatestCommonDivisor($a, $b % $a);
 }
