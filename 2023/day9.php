@@ -1,5 +1,10 @@
 <?php
 
+enum ExtrapolateMode {
+    case ExtrapolateNext;
+    case ExtrapolatePrevious;
+}
+
 $fp = fopen(__DIR__ . '/input/day9.txt', 'r');
 
 if (false === $fp) {
@@ -9,8 +14,8 @@ if (false === $fp) {
 $nextValueSum = $previousValueSum = 0;
 
 foreach (readSequences($fp) as $sequence) {
-    $nextValueSum += extrapolateNextValue($sequence);
-    $previousValueSum += extrapolatePrecedingValue($sequence);
+    $nextValueSum += extrapolateValue($sequence, ExtrapolateMode::ExtrapolateNext);
+    $previousValueSum += extrapolateValue($sequence, ExtrapolateMode::ExtrapolatePrevious);
 }
 
 echo 'Sum of next values: ' . $nextValueSum . PHP_EOL;
@@ -27,7 +32,7 @@ function readSequences($fp): iterable
     }
 }
 
-function extrapolateNextValue(array $sequence): int
+function extrapolateValue(array $sequence, ExtrapolateMode $mode): int
 {
     if ([0] === array_keys(array_count_values($sequence))) {
         return 0;
@@ -35,18 +40,10 @@ function extrapolateNextValue(array $sequence): int
 
     $differences = getSequenceDifferences($sequence);
 
-    return extrapolateNextValue($differences) + array_pop($sequence);
-}
-
-function extrapolatePrecedingValue(array $sequence): int
-{
-    if ([0] === array_keys(array_count_values($sequence))) {
-        return 0;
-    }
-
-    $differences = getSequenceDifferences($sequence);
-
-    return $sequence[0] - extrapolatePrecedingValue($differences);
+    return match($mode) {
+        ExtrapolateMode::ExtrapolateNext => extrapolateValue($differences, $mode) + array_pop($sequence),
+        ExtrapolateMode::ExtrapolatePrevious => $sequence[0] - extrapolateValue($differences, $mode),
+    };
 }
 
 function getSequenceDifferences(array $sequence): array
