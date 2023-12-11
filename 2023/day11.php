@@ -27,8 +27,12 @@ $columnsToExpand = getRegionsToExpand(count($map), array_column($galaxies, 1));
 //echo 'Rows to expand: ' . implode(', ', $rowsToExpand) . PHP_EOL;
 //echo 'Columns to expand: ' . implode(', ', $columnsToExpand) . PHP_EOL;
 
-echo 'Sum of distances between galaxies (part 1): ' . getSumOfDistancesBetweenGalaxies($galaxies, $rowsToExpand, $columnsToExpand, 2) . PHP_EOL;
-echo 'Sum of distances between galaxies (part 2): ' . getSumOfDistancesBetweenGalaxies($galaxies, $rowsToExpand, $columnsToExpand, 1000000) . PHP_EOL;
+echo 'Sum of distances between galaxies (part 1): '
+    . getSumOfDistancesBetweenGalaxies(adjustGalaxies($galaxies, $rowsToExpand, $columnsToExpand, 2))
+    . PHP_EOL;
+echo 'Sum of distances between galaxies (part 2): '
+    . getSumOfDistancesBetweenGalaxies(adjustGalaxies($galaxies, $rowsToExpand, $columnsToExpand, 1000000))
+    . PHP_EOL;
 
 function getMap($fp): array
 {
@@ -62,7 +66,6 @@ function getGalaxies(array $map): array
     return $galaxies;
 }
 
-
 function getRegionsToExpand(int $numRegions, array $galaxyRegions): array
 {
     $expandRegions = array_fill(0, $numRegions, true);
@@ -84,48 +87,38 @@ function getRegionsToExpand(int $numRegions, array $galaxyRegions): array
 
 function adjustGalaxies(array $galaxies, array $rowsToExpand, array $columnsToExpand, int $expandFactor): array
 {
+    foreach ($galaxies as &$galaxy) {
+        $galaxy[0] = adjustCoordinate($galaxy[0], $rowsToExpand, $expandFactor);
+        $galaxy[1] = adjustCoordinate($galaxy[1], $columnsToExpand, $expandFactor);
+    }
 
+    return $galaxies;
 }
 
-function getSumOfDistancesBetweenGalaxies(
-    array $galaxies,
-    array $rowsToExpand,
-    array $columnsToExpand,
-    int $expandFactor,
-): int {
+function adjustCoordinate(int $coordinate, array $regionsToExpand, int $expandFactor): int
+{
+    $regionsToExpand = array_filter(
+        $regionsToExpand,
+        static fn(int $regionCoordinate) => $regionCoordinate < $coordinate,
+    );
+
+    return $coordinate + count($regionsToExpand) * ($expandFactor - 1);
+}
+
+function getSumOfDistancesBetweenGalaxies(array $galaxies): int
+{
     $sumOfDistances = 0;
 
     foreach ($galaxies as $galaxy1Id => $galaxy1) {
         for ($galaxy2Id = $galaxy1Id + 1; $galaxy2Id < count($galaxies); $galaxy2Id++) {
-            $sumOfDistances += getDistanceBetweenGalaxies(
-                $galaxy1,
-                $galaxies[$galaxy2Id],
-                $rowsToExpand,
-                $columnsToExpand,
-                $expandFactor,
-            );
+            $sumOfDistances += getDistanceBetweenGalaxies($galaxy1, $galaxies[$galaxy2Id]);
         }
     }
 
     return $sumOfDistances;
 }
 
-function getDistanceBetweenGalaxies(
-    array $galaxy1,
-    array $galaxy2,
-    array $rowsToExpand,
-    array $columnsToExpand,
-    int $expandFactor,
-): int {
-    $distance = 0;
-
-    for ($row = min($galaxy1[0], $galaxy2[0]); $row < max($galaxy1[0], $galaxy2[0]); $row++) {
-        $distance += in_array($row, $rowsToExpand, true) ? $expandFactor : 1;
-    }
-
-    for ($column = min($galaxy1[1], $galaxy2[1]); $column < max($galaxy1[1], $galaxy2[1]); $column++) {
-        $distance += in_array($column, $columnsToExpand, true) ? $expandFactor : 1;
-    }
-
-    return $distance;
+function getDistanceBetweenGalaxies(array $galaxy1, array $galaxy2): int
+{
+    return abs($galaxy2[0] - $galaxy1[0]) + abs($galaxy2[1] - $galaxy1[1]);
 }
