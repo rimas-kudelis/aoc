@@ -9,7 +9,7 @@ if (false === $fp) {
     throw new RuntimeException('Could not open input file!');
 }
 
-$map = expandMap(getMap($fp));
+$map = getMap($fp);
 
 //foreach($map as $row) {
 //    echo implode('', $row) . PHP_EOL;
@@ -21,15 +21,14 @@ $galaxies = getGalaxies($map);
 //    echo implode (', ', $galaxy) . PHP_EOL;
 //}
 
-$sumOfDistances = 0;
+$rowsToExpand = getRegionsToExpand(count($map), array_column($galaxies, 0));
+$columnsToExpand = getRegionsToExpand(count($map), array_column($galaxies, 1));
 
-foreach ($galaxies as $firstGalaxyId => $galaxy) {
-    for ($nextGalaxyId = $firstGalaxyId + 1; $nextGalaxyId < count($galaxies); $nextGalaxyId++) {
-        $sumOfDistances += getDistanceBetweenGalaxies($galaxy, $galaxies[$nextGalaxyId]);
-    }
-}
+//echo 'Rows to expand: ' . implode(', ', $rowsToExpand) . PHP_EOL;
+//echo 'Columns to expand: ' . implode(', ', $columnsToExpand) . PHP_EOL;
 
-echo 'Sum of distances between galaxies: ' . $sumOfDistances . PHP_EOL;
+echo 'Sum of distances between galaxies (part 1): ' . getSumOfDistancesBetweenGalaxies($galaxies, $rowsToExpand, $columnsToExpand, 2) . PHP_EOL;
+echo 'Sum of distances between galaxies (part 2): ' . getSumOfDistancesBetweenGalaxies($galaxies, $rowsToExpand, $columnsToExpand, 1000000) . PHP_EOL;
 
 function getMap($fp): array
 {
@@ -48,43 +47,6 @@ function getMap($fp): array
     return $map;
 }
 
-function expandMap(array $map): array
-{
-    $expanded = [];
-    $columnsInMap = count($map[0]);
-    $expandColumns = array_fill(0, $columnsInMap, true);
-
-    foreach ($map as $row) {
-        $expanded[] = $row;
-
-        if ([BLANK => $columnsInMap] === array_count_values($row)) {
-            $expanded[] = $row;
-            continue;
-        }
-
-        foreach ($row as $columnIndex => $marker) {
-            if (GALAXY === $marker) {
-                $expandColumns[$columnIndex] = false;
-            }
-        }
-    }
-
-    foreach ($expanded as $rowIndex => $row) {
-        $expandedRow = [];
-
-        foreach ($row as $columnIndex => $marker) {
-            $expandedRow[] = $marker;
-            if ($expandColumns[$columnIndex]) {
-                $expandedRow[] = $marker;
-            }
-        }
-
-        $expanded[$rowIndex] = $expandedRow;
-    }
-
-    return $expanded;
-}
-
 function getGalaxies(array $map): array
 {
     $galaxies = [];
@@ -100,7 +62,70 @@ function getGalaxies(array $map): array
     return $galaxies;
 }
 
-function getDistanceBetweenGalaxies(array $galaxy1, array $galaxy2): int
+
+function getRegionsToExpand(int $numRegions, array $galaxyRegions): array
 {
-    return abs($galaxy1[0] - $galaxy2[0]) + abs($galaxy1[1] - $galaxy2[1]);
+    $expandRegions = array_fill(0, $numRegions, true);
+
+    foreach ($galaxyRegions as $galaxyRegion) {
+        $expandRegions[$galaxyRegion] = false;
+    }
+
+    $regionsToExpand = [];
+
+    foreach ($expandRegions as $regionIndex => $expandRow) {
+        if ($expandRow) {
+            $regionsToExpand[] = $regionIndex;
+        }
+    }
+
+    return $regionsToExpand;
+}
+
+function adjustGalaxies(array $galaxies, array $rowsToExpand, array $columnsToExpand, int $expandFactor): array
+{
+
+}
+
+function getSumOfDistancesBetweenGalaxies(
+    array $galaxies,
+    array $rowsToExpand,
+    array $columnsToExpand,
+    int $expandFactor,
+): int {
+    $sumOfDistances = 0;
+
+    foreach ($galaxies as $galaxy1Id => $galaxy1) {
+        for ($galaxy2Id = $galaxy1Id + 1; $galaxy2Id < count($galaxies); $galaxy2Id++) {
+            $sumOfDistances += getDistanceBetweenGalaxies(
+                $galaxy1,
+                $galaxies[$galaxy2Id],
+                $rowsToExpand,
+                $columnsToExpand,
+                $expandFactor,
+            );
+        }
+    }
+
+    return $sumOfDistances;
+}
+
+function getDistanceBetweenGalaxies(
+    array $galaxy1,
+    array $galaxy2,
+    array $rowsToExpand,
+    array $columnsToExpand,
+    int $expandFactor,
+): int {
+    $distance = 0;
+
+    for ($row = min($galaxy1[0], $galaxy2[0]); $row < max($galaxy1[0], $galaxy2[0]); $row++) {
+        $distance += in_array($row, $rowsToExpand, true) ? $expandFactor : 1;
+    }
+
+    for ($column = min($galaxy1[1], $galaxy2[1]); $column < max($galaxy1[1], $galaxy2[1]); $column++) {
+        $distance += in_array($column, $columnsToExpand, true) ? $expandFactor : 1;
+    }
+
+    return $distance;
 }
