@@ -14,9 +14,8 @@ if (false === $fp) {
 
 $totalPossibleArrangements = 0;
 
-foreach (getRecords($fp) as $record) {
-    $validArrangements = countValidArrangements(...$record);
-    $totalPossibleArrangements += $validArrangements;
+foreach (getRecords($fp) as list($map, $damagedSpringCounts)) {
+    $totalPossibleFoldedArrangements += countValidArrangements($map, $damagedSpringCounts);
 }
 
 echo 'Total possible arrangements: ' . $totalPossibleArrangements . PHP_EOL;
@@ -51,6 +50,11 @@ function countValidArrangements(string $map, string $damagedSpringCounts): int
         return 0;
     }
 
+    $pattern = getDamagedCountPattern($map);
+    if (null !== $pattern && 1 !== preg_match($pattern, $damagedSpringCounts)) {
+        return 0;
+    }
+
     return countValidArrangements(substr_replace($map, WORKING, $firstUnknownPosition, 1), $damagedSpringCounts)
         + countValidArrangements(substr_replace($map, DAMAGED, $firstUnknownPosition, 1), $damagedSpringCounts);
 }
@@ -67,4 +71,38 @@ function getCurrentDamagedSpringCounts(string $map): string
             ),
         ),
     );
+}
+
+function getDamagedCountPattern(string $map): ?string
+{
+    $mapComponents = explode(UNKNOWN, $map);
+    $damagedSpringCountsInComponents = [];
+
+    foreach ($mapComponents as $index => $mapComponent) {
+        if ('' === $mapComponent) {
+            continue;
+        }
+
+        $counts = explode(',', getCurrentDamagedSpringCounts($mapComponent));
+        if (DAMAGED === $mapComponent[0] && isset($mapComponents[$index - 1])) {
+            array_shift($counts);
+        }
+
+        if (DAMAGED === substr($mapComponent, -1) && isset($mapComponents[$index + 1])) {
+            array_pop($counts);
+        }
+
+        $damagedSpringCountsInComponents[] = implode(',', $counts);
+    }
+
+    $damagedSpringCountsInComponents = array_filter(
+        $damagedSpringCountsInComponents,
+        static fn(string $string): bool => '' !== $string,
+    );
+
+    if ([] === $damagedSpringCountsInComponents) {
+        return null;
+    }
+
+    return '/' . implode(',([0-9]+,)*', $damagedSpringCountsInComponents) . '/';
 }
