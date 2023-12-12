@@ -4,20 +4,23 @@ const WORKING = '.';
 const DAMAGED = '#';
 const UNKNOWN = '?';
 
+$start = microtime(true);
+
 $fp = fopen(__DIR__ . '/input/day12.txt', 'r');
 
 if (false === $fp) {
     throw new RuntimeException('Could not open input file!');
 }
 
-$totalPossibleArrangments = 0;
+$totalPossibleArrangements = 0;
 
 foreach (getRecords($fp) as $record) {
     $validArrangements = countValidArrangements(...$record);
-    $totalPossibleArrangments += $validArrangements;
+    $totalPossibleArrangements += $validArrangements;
 }
 
-echo 'Total possible arrangements: ' . $totalPossibleArrangments . PHP_EOL;
+echo 'Total possible arrangements: ' . $totalPossibleArrangements . PHP_EOL;
+echo 'Calculation took ' . microtime(true) - $start . ' seconds.' . PHP_EOL;
 
 function getRecords($fp): iterable
 {
@@ -37,7 +40,7 @@ function getRecords($fp): iterable
 
 function countValidArrangements(string $map, string $damagedSpringCounts): int
 {
-    $currentDamagedSpringCounts = getDamagedCounts($map);
+    $currentDamagedSpringCounts = getCurrentDamagedSpringCounts($map);
 
     if ($damagedSpringCounts === $currentDamagedSpringCounts) {
         return 1;
@@ -52,23 +55,16 @@ function countValidArrangements(string $map, string $damagedSpringCounts): int
         + countValidArrangements(substr_replace($map, DAMAGED, $firstUnknownPosition, 1), $damagedSpringCounts);
 }
 
-function getDamagedCounts(string $map): string
+function getCurrentDamagedSpringCounts(string $map): string
 {
-    $damagedCounts = [];
-    $currentDamagedCount = 0;
-
-    foreach (str_split($map) as $spring) {
-        if (DAMAGED === $spring) {
-            $currentDamagedCount++;
-
-            continue;
-        }
-
-        $damagedCounts[] = $currentDamagedCount;
-        $currentDamagedCount = 0;
-    }
-
-    $damagedCounts[] = $currentDamagedCount;
-
-    return implode(',', array_filter($damagedCounts, static fn(int $count): bool => 0 !== $count));
+    return implode(
+        ',',
+        array_map(
+            static fn(string $string): int => strlen($string),
+            array_filter(
+                preg_split('/[^' . DAMAGED . ']+/', $map),
+                static fn(string $string): bool => '' !== $string,
+            ),
+        ),
+    );
 }
