@@ -8,16 +8,15 @@ if (false === $fp) {
     throw new RuntimeException('Could not open input file!');
 }
 
-echo microtime(true) . PHP_EOL;
-
-$summary = 0;
+$initialSummary = $correctedSummary = 0;
 
 foreach (getPatterns($fp) as $pattern) {
-    $summary += getLeftReflectedColumns($pattern) ?: (getTopReflectedRows($pattern) * 100);
+    $initialSummary += getLeftReflectedColumns($pattern) ?: (getTopReflectedRows($pattern) * 100);
+    $correctedSummary += getLeftReflectedColumns($pattern, 1) ?: (getTopReflectedRows($pattern, 1) * 100);
 }
 
-echo 'Result: ' . $summary . PHP_EOL;
-
+echo 'Initial summary: ' . $initialSummary . PHP_EOL;
+echo 'Corrected summary: ' . $correctedSummary . PHP_EOL;
 echo 'Calculation took ' . microtime(true) - $start . ' seconds.' . PHP_EOL;
 
 function getPatterns($fp): iterable
@@ -27,49 +26,55 @@ function getPatterns($fp): iterable
     while (false !== $line = fgets($fp)) {
         if ("\n" === $line) {
             yield $pattern;
+
             $pattern = [];
 
             continue;
         }
 
-        $pattern[] = str_split(trim($line));
+        $pattern[] = trim($line);
     }
 
     yield $pattern;
 }
 
-function getLeftReflectedColumns(array $pattern): int
+function getLeftReflectedColumns(array $pattern, int $requiredSmudges = 0): int
 {
-    return getTopReflectedRows(transpose($pattern));
+    return getTopReflectedRows(transposePattern($pattern), $requiredSmudges);
 }
 
-function getTopReflectedRows(array $pattern): int
+function getTopReflectedRows(array $pattern, int $requiredSmudges = 0): int
 {
-    for ($i = array_key_last($pattern); $i >= 1; $i--) {
-        if ($pattern[$i] === $pattern[$i - 1]) {
-            $j = $i + 1;
-            $k = $i - 2;
+    for ($i = array_key_last($pattern) - 1; $i >= 0; $i--) {
+        $j = $i;
+        $k = $i + 1;
+        $currentTotalSmudges = 0;
 
-            while (isset($pattern[$j]) && isset($pattern[$k])) {
-                if ($pattern[$j++] !== $pattern[$k--]) {
-                    continue 2;
-                }
+        while (isset($pattern[$j]) && isset($pattern[$k])) {
+            $currentSmudges = levenshtein($pattern[$j--], $pattern[$k++], 10000, 1, 10000);
+            $currentTotalSmudges += $currentSmudges;
+
+            if ($requiredSmudges < $currentTotalSmudges) {
+                continue 2;
             }
+        }
 
-            return $i;
+        if ($requiredSmudges === $currentTotalSmudges) {
+            return $i + 1;
         }
     }
 
     return 0;
 }
 
-function transpose(array $matrix): array
+function transposePattern(array $pattern): array
 {
-    $result = [];
+    $matrix = array_map('str_split', $pattern);
+    $transposedMatrix = [];
 
     foreach ($matrix[0] as $columnIndex => $value) {
-        $result[] = array_column($matrix, $columnIndex);
+        $transposedMatrix[] = array_column($matrix, $columnIndex);
     }
 
-    return $result;
+    return array_map(static fn (array $row): string => implode('', $row), $transposedMatrix);
 }
