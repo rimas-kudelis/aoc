@@ -4,6 +4,8 @@ const FREE = '.';
 const ROUND = 'O';
 const CUBE = '#';
 
+const SPIN_CYCLES = 1000000000;
+
 $start = microtime(true);
 
 $fp = fopen(__DIR__ . '/input/day14.txt', 'r');
@@ -15,7 +17,33 @@ if (false === $fp) {
 $platform = scanPlatform($fp);
 $tilted = tiltNorth($platform);
 
-echo 'Total load on the North support beams: ' . calculateLoad($tilted) . PHP_EOL;
+echo 'Total load on North support beams after first tilt: ' . calculateLoadOnNorthBeams($tilted) . PHP_EOL . PHP_EOL;
+
+$spinHistory = [];
+
+// This code assumes a loop will be found eventually. If not, it will run out of memory soon enough.
+for ($cycle = 0; $cycle < SPIN_CYCLES; $cycle++) {
+    $positionInSpinHistory = array_search($tilted, $spinHistory, true);
+
+    if (false !== $positionInSpinHistory) {
+        $spinLoopSize = count($spinHistory) - $positionInSpinHistory;
+        $remainingCycles = (SPIN_CYCLES - $cycle) % $spinLoopSize;
+        $tilted = $spinHistory[$positionInSpinHistory + $remainingCycles];
+
+        echo 'Spin loop detected at cycle: ' . $cycle . PHP_EOL;
+        echo 'Pre-spin platform layout found in history at index: ' . $positionInSpinHistory . PHP_EOL;
+        echo 'Total platform layouts in history: ' . count($spinHistory) . PHP_EOL;
+        echo 'Loop size: ' . $spinLoopSize . PHP_EOL;
+        echo 'Extra cycles to add: ' . $remainingCycles . PHP_EOL;
+
+        break;
+    }
+
+    $spinHistory[] = $tilted;
+    $tilted = runSpinCycle($tilted);
+}
+
+echo 'Total load on North support beams after ' . SPIN_CYCLES . ' spin cycles: ' . calculateLoadOnNorthBeams($tilted) . PHP_EOL;
 echo 'Calculation took ' . microtime(true) - $start . ' seconds.' . PHP_EOL;
 
 function scanPlatform($fp): array
@@ -37,40 +65,48 @@ function scanPlatform($fp): array
 
 function tiltNorth(array $platform): array
 {
-    $tilted = [];
+    return transposeMatrix(tiltWest(transposeMatrix($platform)));
+}
 
+function tiltSouth(array $platform): array
+{
+    return array_reverse(tiltNorth(array_reverse($platform)));
+}
+
+function tiltWest(array $platform): array
+{
     foreach ($platform as $rowIndex => $row) {
-        $tilted[$rowIndex] = [];
+        $lastOccupiedSpace = -1;
 
         foreach ($row as $rockIndex => $rock) {
-            if (FREE === $rock || CUBE === $rock) {
-                $tilted[$rowIndex][$rockIndex] = $rock;
-
+            if (CUBE === $rock) {
+                $lastOccupiedSpace = $rockIndex;
                 continue;
             }
-
-            $tilted[$rowIndex][$rockIndex] = FREE;
-
-            for ($nextRowIndex = $rowIndex - 1; $nextRowIndex >= -1; $nextRowIndex--) {
-                if (-1 === $nextRowIndex || FREE !== $tilted[$nextRowIndex][$rockIndex]) {
-                    $tilted[$nextRowIndex + 1][$rockIndex] = $rock;
-
-                    break;
+            if (ROUND === $rock) {
+                if ($rockIndex !== ++$lastOccupiedSpace) {
+                    $platform[$rowIndex][$rockIndex] = FREE;
+                    $platform[$rowIndex][$lastOccupiedSpace] = ROUND;
                 }
             }
         }
     }
 
-    return $tilted;
+    return $platform;
 }
 
-function calculateLoad(array $platform): int
+function tiltEast(array $platform): array
 {
+    return array_map('array_reverse', tiltWest(array_map('array_reverse', $platform)));
+}
 
-    foreach ($platform as $row) {
-        echo implode('', $row) . PHP_EOL;
-    }
+function runSpinCycle(array $platform): array
+{
+    return tiltEast(tiltSouth(tiltWest(tiltNorth($platform))));
+}
 
+function calculateLoadOnNorthBeams(array $platform): int
+{
     $load = 0;
     $rowMultiplier = count($platform);
 
@@ -80,4 +116,10 @@ function calculateLoad(array $platform): int
     }
 
     return $load;
+}
+
+function transposeMatrix(array $matrix): array
+{
+    # https://stackoverflow.com/questions/797251/transposing-multidimensional-arrays-in-php
+    return array_map(null, ...$matrix);
 }
