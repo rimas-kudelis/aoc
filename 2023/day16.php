@@ -20,10 +20,11 @@ if (false === $fp) {
     throw new RuntimeException('Could not open input file!');
 }
 
+$initialLightBeamMapCache = [];
 $contraption = readContraption($fp);
-$lightBeamMap = energizeContraption($contraption);
 
-echo 'Energized tiles: ' . calculateEnergizedTiles($lightBeamMap) . PHP_EOL;
+echo 'Energized tiles: ' . calculateEnergizedTiles(energizeContraption($contraption)) . PHP_EOL;
+echo 'Best energized tiles: ' . calculateEnergizedTilesInBestScenario($contraption) . PHP_EOL;
 echo 'Calculation took ' . microtime(true) - $start . ' seconds.' . PHP_EOL;
 
 function readContraption($fp): array
@@ -40,19 +41,15 @@ function readContraption($fp): array
     return $contraption;
 }
 
-function energizeContraption(array $contraption): array
-{
-    $lightBeamMap = array_fill(
-        0,
-        count($contraption),
-        array_fill(
-            0,
-            count($contraption[0]),
-            [ENERGIZED => false, TOP => false, RIGHT => false, BOTTOM => false, LEFT => false],
-        ),
-    );
+function energizeContraption(
+    array $contraption,
+    int $startRow = 0,
+    int $startColumn = 0,
+    string $startDirection = LEFT,
+): array {
+    $lightBeamMap = getInitialLightBeamMap(count($contraption), count($contraption[0]));
 
-    applyBeam($contraption, $lightBeamMap, 0, 0, LEFT);
+    applyBeam($contraption, $lightBeamMap, $startRow, $startColumn, $startDirection);
 
     return $lightBeamMap;
 }
@@ -156,11 +153,60 @@ function applyBeam(array $contraption, array &$lightBeamMap, int $row, int $colu
 
 function calculateEnergizedTiles(array $lightBeamMap): int
 {
-
     return array_sum(
         array_map(
             static fn(array $row): int => count(array_filter($row, static fn(array $tile): bool => $tile[ENERGIZED])),
             $lightBeamMap,
         ),
     );
+}
+
+function getInitialLightBeamMap(int $rows, int $columns): array
+{
+    global $initialLightBeamMapCache;
+
+    if (!isset($initialLightBeamMapCache[$rows][$columns])) {
+        $initialLightBeamMapCache[$rows][$columns] = array_fill(
+            0,
+            $rows,
+            array_fill(
+                0,
+                $columns,
+                [ENERGIZED => false, TOP => false, RIGHT => false, BOTTOM => false, LEFT => false],
+            ),
+        );
+    }
+
+    return $initialLightBeamMapCache[$rows][$columns];
+}
+
+function calculateEnergizedTilesInBestScenario(array $contraption): int
+{
+    $bestEnergizedTiles = 0;
+    $lastRow = count($contraption) - 1;
+    $lastColumn = count($contraption[0]) - 1;
+
+    for ($column = 0; $column <= $lastColumn; ++$column) {
+        $bestEnergizedTiles = max(
+            $bestEnergizedTiles,
+            calculateEnergizedTiles(energizeContraption($contraption, 0, $column, TOP)),
+        );
+        $bestEnergizedTiles = max(
+            $bestEnergizedTiles,
+            calculateEnergizedTiles(energizeContraption($contraption, $lastRow, $column, BOTTOM)),
+        );
+    }
+
+    for ($row = 0; $row <= $lastRow; $row++) {
+        $bestEnergizedTiles = max(
+            $bestEnergizedTiles,
+            calculateEnergizedTiles(energizeContraption($contraption, $row, 0, LEFT)),
+        );
+        $bestEnergizedTiles = max(
+            $bestEnergizedTiles,
+            calculateEnergizedTiles(energizeContraption($contraption, $row, $lastColumn, RIGHT)),
+        );
+    }
+
+    return $bestEnergizedTiles;
 }
