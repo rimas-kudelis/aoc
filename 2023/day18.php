@@ -4,6 +4,9 @@ const LEFT = 'L';
 const RIGHT = 'R';
 const UP = 'U';
 const DOWN = 'D';
+const DUG = 'X';
+
+$start = microtime(true);
 
 $fp = fopen(__DIR__ . '/input/day18.txt', 'r');
 
@@ -14,9 +17,14 @@ if (false === $fp) {
 $instructions = getInstructions($fp);
 $map = digLagoon($instructions);
 
-printMap($map);
+printf('Lagoon size is %d cubic meters (part 1).' . PHP_EOL, calculateLagoonSize($map));
 
-printf('Lagoon size is %d cubic meters.' . PHP_EOL, calculateLagoonSize($map));
+$instructions = fixInstructions($instructions);
+$map = digLagoon($instructions);
+
+printf('Lagoon size is %d cubic meters (part 2).' . PHP_EOL, calculateLagoonSize($map));
+
+echo 'Calculation took ' . microtime(true) - $start . ' seconds.' . PHP_EOL;
 
 function getInstructions($fp): array
 {
@@ -38,123 +46,177 @@ function getInstructions($fp): array
 
 function digLagoon(array $instructions): array
 {
-    $trenchMap = $fieldMap = digTrench($instructions);
+    $trenchMap = $map = digTrench($instructions);
+    $map = digLagoonInterior($trenchMap);
 
-    foreach ($fieldMap as $rowIndex => $row) {
-        $dig = false;
+    return $map;
+}
 
-        foreach ($row as $columnIndex => $tile) {
-            if (1 === $tile) {
-                if (1 === ($trenchMap[$rowIndex - 1][$columnIndex] ?? 0)) {
-                    $dig = !$dig;
+function digLagoonInterior(array $trenchMap): array
+{
+    $map = $trenchMap;
+
+    foreach ($map as $rowIndex => $row) {
+        $enclosed = $trenchEncountered = $trenchWentUp = $trenchWentDown = false;
+
+        foreach ($row as $colIndex => $tile) {
+            if (true === $tile[DUG]) {
+                $trenchEncountered = true;
+
+                if ($trenchMap[$rowIndex - 1][$colIndex][DUG] ?? false) {
+                    $trenchWentUp = !$trenchWentUp;
+                }
+
+                if ($trenchMap[$rowIndex + 1][$colIndex][DUG] ?? false) {
+                    $trenchWentDown = !$trenchWentDown;
                 }
 
                 continue;
             }
 
-            if ($dig) {
-                $fieldMap[$rowIndex][$columnIndex] = 1;
+            if ($trenchEncountered && $trenchWentUp && $trenchWentDown) {
+                $enclosed = !$enclosed;
+            }
+
+            $trenchEncountered = $trenchWentUp = $trenchWentDown = false;
+
+            if ($enclosed) {
+                $map[$rowIndex][$colIndex][DUG] = true;
             }
         }
     }
 
-    return $fieldMap;
+    return $map;
 }
 
 function digTrench(array $instructions): array
 {
-    $x = $y = $minX = $minY = $maxX = $maxY = 0;
+    $rowIndex = $colIndex = 0;
+    $rowLines = $colLines = [0 => 0, 1 => 1];
 
-    // Figure out the outer dimensions of the rectangle that the lagoon fits in, and the digging start point
+    // Find all X and Y values (breakpoints) where lagoon corners occur. Each edge may fold in either direction, so
+    // it will be considered as two distinct breakpoints (x and x+1) just in case.
     foreach ($instructions as list($direction, $distance, $color)) {
         switch ($direction) {
             case DOWN:
-                $x += $distance;
-                $maxX = max($maxX, $x);
+                $rowIndex += $distance;
                 break;
             case UP:
-                $x -= $distance;
-                $minX = min($minX, $x);
+                $rowIndex -= $distance;
                 break;
             case RIGHT:
-                $y += $distance;
-                $maxY = max($maxY, $y);
+                $colIndex += $distance;
                 break;
             case LEFT:
-                $y -= $distance;
-                $minY = min($minY, $y);
+                $colIndex -= $distance;
                 break;
             default:
                 throw new RuntimeException('Invalid direction: ' . $direction . '!');
         }
+
+        $rowLines[$rowIndex] = $rowIndex;
+        $rowLines[$rowIndex + 1] = $rowIndex + 1;
+        $colLines[$colIndex] = $colIndex;
+        $colLines[$colIndex + 1] = $colIndex + 1;
     }
 
-    $fieldMap = array_fill(0, $maxX - $minX +1, array_fill(0, $maxY - $minY + 1, 0));
-    $x = -$minX;
-    $y = -$minY;
-    $fieldMap[$x][$y] = 1;
+    ksort($rowLines);
+    ksort($colLines);
 
+    $startRow = array_shift($rowLines);
+    $startCol = array_shift($colLines);
+
+    $fieldMap = [];
+    $lastRow = $startRow;
+
+    foreach ($rowLines as $rowLine) {
+        $fieldMap[$lastRow] = [];
+        $lastCol = $startCol;
+
+        foreach ($colLines as $colLine) {
+            $fieldMap[$lastRow][$lastCol] = [DOWN => $rowLine - $lastRow, RIGHT => $colLine - $lastCol, DUG => false];
+            $lastCol = $colLine;
+        }
+
+        $lastRow = $rowLine;
+    }
+
+    $fieldMap[0][0][DUG] = true;
+
+    $lastRow = $lastCol = 0;
     foreach ($instructions as list($direction, $distance, $color)) {
         switch ($direction) {
             case DOWN:
-                for ($i = 0; $i < $distance; ++$i) {
-                    $fieldMap[++$x][$y] = 1;
-                }
+                $minRow = $lastRow + 1;
+                $maxRow = $lastRow = $lastRow + $distance;
+                $minCol = $maxCol = $lastCol;
 
                 break;
             case UP:
-                for ($i = 0; $i < $distance; ++$i) {
-                    $fieldMap[--$x][$y] = 1;
-                }
+                $maxRow = $lastRow - 1;
+                $minRow = $lastRow = $lastRow - $distance;
+                $minCol = $maxCol = $lastCol;
 
                 break;
             case RIGHT:
-                for ($i = 0; $i < $distance; ++$i) {
-                    $fieldMap[$x][++$y] = 1;
-                }
+                $minRow = $maxRow = $lastRow;
+                $minCol = $lastCol + 1;
+                $maxCol = $lastCol = $lastCol + $distance;
 
                 break;
             case LEFT:
-                for ($i = 0; $i < $distance; ++$i) {
-                    $fieldMap[$x][--$y] = 1;
-                }
+                $minRow = $maxRow = $lastRow;
+                $maxCol = $lastCol - 1;
+                $minCol = $lastCol = $lastCol - $distance;
 
                 break;
+            default:
+                throw new RuntimeException('Invalid direction: "' . $direction . '"!');
+        }
+
+        foreach ($fieldMap as $rowIndex => $row) {
+            if ($minRow > $rowIndex || $maxRow < $rowIndex) {
+                continue;
+            }
+
+            foreach ($row as $colIndex => $data) {
+                if ($minCol > $colIndex || $maxCol < $colIndex) {
+                    continue;
+                }
+
+                $fieldMap[$rowIndex][$colIndex][DUG] = true;
+            }
         }
     }
 
-    return $fieldMap;
+    // Return arrays with incremental indices starting at 0 (a list of lists).
+    return array_values(array_map('array_values', $fieldMap));
 }
 
 function calculateLagoonSize(array $lagoon): int
 {
-    return array_sum(array_map('array_sum', $lagoon));
+    return array_sum(
+        array_map(
+            'array_sum',
+            array_map(
+                static fn(array $row): array => array_map(
+                    static fn(array $tile) => $tile[DUG] ? $tile[DOWN] * $tile[RIGHT] : 0,
+                    $row
+                ),
+                $lagoon,
+            ),
+        ),
+    );
 }
 
-function printMap(array $map): void
+function fixInstructions(array $instructions): array
 {
-    for ($row = 0; $row < count($map); $row += 4) {
-        for ($column = 0; $column < count($map[$row]); $column += 2) {
-            $codePoint = 0x2800;
-
-            foreach([
-                $map[$row][$column] ?? '0',
-                $map[$row + 1][$column] ?? '0',
-                $map[$row + 2][$column] ?? '0',
-                $map[$row][$column + 1] ?? '0',
-                $map[$row + 1][$column + 1] ?? '0',
-                $map[$row + 2][$column + 1] ?? '0',
-                $map[$row + 3][$column] ?? '0',
-                $map[$row + 3][$column + 1] ?? '0',
-            ] as $index => $dot) {
-                if (1 === $dot) {
-                    $codePoint += (2**$index);
-                }
-            }
-
-            echo mb_chr($codePoint, 'UTF-8');
-        }
-
-        echo PHP_EOL;
-    }
+    return array_map(
+        static fn(array $instruction): array => [
+            [RIGHT, DOWN, LEFT, UP][substr($instruction[2], 6)],
+            intval(substr($instruction[2], 1, 5), 16),
+            '',
+        ],
+        $instructions,
+    );
 }
