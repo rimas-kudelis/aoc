@@ -92,62 +92,38 @@ function canAccept(Part $part, array $workflows): bool
     return ACCEPT === $workflowName;
 }
 
-/** @param Workflow[] $workflows */
+/**
+ * @param Workflow[] $workflows
+ * @param array<string, Interval> $allowedRatingIntervals
+ */
 function calculateAcceptableCombos(
     array $workflows,
-    ?Interval $allowedExtremelyCoolRatingInterval = null,
-    ?Interval $allowedMusicalRatingInterval = null,
-    ?Interval $allowedAerodynamicRatingInterval = null,
-    ?Interval $allowedShinyRatingInterval = null,
+    array $allowedRatingIntervals = [],
     string $workflowName = DEFAULT_WORKFLOW_NAME,
 ): int {
-    if (null === $allowedExtremelyCoolRatingInterval) {
-        $allowedExtremelyCoolRatingInterval = new Interval(RATING_MIN, RATING_MAX);
+    if ([] === $allowedRatingIntervals) {
+        foreach (Category::cases() as $category) {
+            $allowedRatingIntervals[$category->value] = new Interval(RATING_MIN, RATING_MAX);
+        }
     }
 
-    if (null === $allowedMusicalRatingInterval) {
-        $allowedMusicalRatingInterval = new Interval(RATING_MIN, RATING_MAX);
-    }
-
-    if (null === $allowedAerodynamicRatingInterval) {
-        $allowedAerodynamicRatingInterval = new Interval(RATING_MIN, RATING_MAX);
-    }
-
-    if (null === $allowedShinyRatingInterval) {
-        $allowedShinyRatingInterval = new Interval(RATING_MIN, RATING_MAX);
-    }
-
-    $nextExtremelyCoolRatingInterval = $allowedExtremelyCoolRatingInterval;
-    $nextMusicalRatingInterval = $allowedMusicalRatingInterval;
-    $nextAerodynamicRatingInterval = $allowedAerodynamicRatingInterval;
-    $nextShinyRatingInterval = $allowedShinyRatingInterval;
-
+    $nextAllowedRatingIntervals = $currentAllowedRatingIntervals = $allowedRatingIntervals;
     $acceptableCombos = 0;
 
     foreach ($workflows[$workflowName]->rules as $rule) {
-        $allowedExtremelyCoolRatingInterval = $nextExtremelyCoolRatingInterval;
-        $allowedMusicalRatingInterval = $nextMusicalRatingInterval;
-        $allowedAerodynamicRatingInterval = $nextAerodynamicRatingInterval;
-        $allowedShinyRatingInterval = $nextShinyRatingInterval;
+        $currentAllowedRatingIntervals = $nextAllowedRatingIntervals;
 
-        if (in_array(null, [$allowedExtremelyCoolRatingInterval, $allowedMusicalRatingInterval, $allowedAerodynamicRatingInterval, $allowedShinyRatingInterval])) {
+        if (in_array(null, $currentAllowedRatingIntervals)) {
             continue;
         }
 
         if (null !== $rule->matcher) {
-            match ($rule->matcher->category) {
-                Category::ExtremelyCool => list($allowedExtremelyCoolRatingInterval, $nextExtremelyCoolRatingInterval) =
-                    $allowedExtremelyCoolRatingInterval->splitByMatcher($rule->matcher),
-                Category::Musical => list($allowedMusicalRatingInterval, $nextMusicalRatingInterval) =
-                    $allowedMusicalRatingInterval->splitByMatcher($rule->matcher),
-                Category::Aerodynamic => list($allowedAerodynamicRatingInterval, $nextAerodynamicRatingInterval) =
-                    $allowedAerodynamicRatingInterval->splitByMatcher($rule->matcher),
-                Category::Shiny => list($allowedShinyRatingInterval, $nextShinyRatingInterval) =
-                    $allowedShinyRatingInterval->splitByMatcher($rule->matcher),
-            };
+            $category = $rule->matcher->category->value;
+            list($currentAllowedRatingIntervals[$category], $nextAllowedRatingIntervals[$category]) =
+                $currentAllowedRatingIntervals[$category]->splitByMatcher($rule->matcher);
         }
 
-        if (in_array(null, [$allowedExtremelyCoolRatingInterval, $allowedMusicalRatingInterval, $allowedAerodynamicRatingInterval, $allowedShinyRatingInterval])) {
+        if (in_array(null, $currentAllowedRatingIntervals)) {
             continue;
         }
 
@@ -156,21 +132,17 @@ function calculateAcceptableCombos(
         }
 
         if (ACCEPT === $rule->nextWorkflow) {
-            $acceptableCombos += ($allowedExtremelyCoolRatingInterval->max - $allowedExtremelyCoolRatingInterval->min + 1)
-                * ($allowedMusicalRatingInterval->max - $allowedMusicalRatingInterval->min + 1)
-                * ($allowedAerodynamicRatingInterval->max - $allowedAerodynamicRatingInterval->min + 1)
-                * ($allowedShinyRatingInterval->max - $allowedShinyRatingInterval->min + 1);
+            $acceptableCombos += array_product(
+                array_map(
+                    static fn(Interval $interval): int => $interval->max - $interval->min + 1,
+                    $currentAllowedRatingIntervals,
+                ),
+            );
+
             continue;
         }
 
-        $acceptableCombos += calculateAcceptableCombos(
-            $workflows,
-            $allowedExtremelyCoolRatingInterval,
-            $allowedMusicalRatingInterval,
-            $allowedAerodynamicRatingInterval,
-            $allowedShinyRatingInterval,
-            $rule->nextWorkflow,
-        );
+        $acceptableCombos += calculateAcceptableCombos($workflows, $currentAllowedRatingIntervals, $rule->nextWorkflow);
     }
 
     return $acceptableCombos;
