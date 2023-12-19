@@ -151,7 +151,7 @@ class Rule
     private const NEXT_WORKFLOW_SEPARATOR = ':';
 
     public function __construct(
-        private readonly ?Comparator $comparator,
+        private readonly ?Matcher $matcher,
         private readonly string $nextWorkflow,
     ) {
     }
@@ -165,14 +165,14 @@ class Rule
         }
 
         return new self(
-            Comparator::createFromString(substr($string, 0, $separatorPosition)),
+            Matcher::createFromString(substr($string, 0, $separatorPosition)),
             substr($string, $separatorPosition + 1),
         );
     }
 
     public function apply(Part $part): ?string
     {
-        if (null === $this->comparator || $this->comparator->matches($part)) {
+        if (null === $this->matcher || $this->matcher->matches($part)) {
             return $this->nextWorkflow;
         }
 
@@ -180,7 +180,7 @@ class Rule
     }
 }
 
-class Comparator
+class Matcher
 {
     public function __construct(
         private readonly Category $category,
