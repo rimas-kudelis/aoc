@@ -18,6 +18,9 @@ const DEFAULT_WORKFLOW = 'in';
 const ACCEPT = 'A';
 const REJECT = 'R';
 
+const RATING_MIN = 1;
+const RATING_MAX = 4000;
+
 $start = microtime(true);
 
 $fp = fopen(__DIR__ . '/input/day19.txt', 'r');
@@ -38,10 +41,11 @@ foreach (readParts($fp) as $part) {
 
 $ratingSum = 0;
 foreach ($acceptedParts as $part) {
-    $ratingSum += $part->extremelyCool + $part->musical + $part->aerodynamic + $part->shiny;
+    $ratingSum += $part->extremelyCoolRating + $part->musicalRating + $part->aerodynamicRating + $part->shinyRating;
 }
 
-echo 'Sum of partRatings: ' . $ratingSum . PHP_EOL;
+echo 'Sum of part ratings: ' . $ratingSum . PHP_EOL;
+echo 'Possible distinct combinations: ' . calculateAcceptableCombos($workflows) . PHP_EOL;
 echo 'Calculation took ' . microtime(true) - $start . ' seconds.' . PHP_EOL;
 
 function readWorkflows($fp): array
@@ -88,13 +92,86 @@ function canAccept(Part $part, array $workflows): bool
     return ACCEPT === $workflowName;
 }
 
+/** @param Workflow[] $workflows */
+function calculateAcceptableCombos(array $workflows): int
+{
+    $breakpoints = getRuleBreakpoints($workflows);
+    $lastExtremelyCoolRating = $initialLastRating = RATING_MIN - 1;
+    $acceptableCombos = 0;
+
+    foreach ($breakpoints[Category::ExtremelyCool->value] as $extremelyCoolRating) {
+        $lastMusicalRating = $initialLastRating;
+
+        foreach ($breakpoints[Category::Musical->value] as $musicalRating) {
+            $lastAerodynamicRating = $initialLastRating;
+
+            foreach ($breakpoints[Category::Aerodynamic->value] as $aerodynamicRating) {
+                $lastShinyRating = $initialLastRating;
+
+                foreach ($breakpoints[Category::Shiny->value] as $shinyRating) {
+                    if (canAccept(new Part($extremelyCoolRating, $musicalRating, $aerodynamicRating, $shinyRating), $workflows)) {
+                        $acceptableCombos += ($extremelyCoolRating - $lastExtremelyCoolRating) * ($musicalRating - $lastMusicalRating)
+                            * ($aerodynamicRating - $lastAerodynamicRating) * ($shinyRating - $lastShinyRating);
+                    }
+
+                    $lastShinyRating = $shinyRating;
+                }
+
+                $lastAerodynamicRating = $aerodynamicRating;
+            }
+
+            $lastMusicalRating = $musicalRating;
+        }
+
+        $lastExtremelyCoolRating = $extremelyCoolRating;
+    }
+
+    return $acceptableCombos;
+}
+
+/** @param Workflow[] $workflows */
+function getRuleBreakpoints(array $workflows): array
+{
+    $breakpoints = [
+        Category::ExtremelyCool->value => [RATING_MAX],
+        Category::Musical->value => [RATING_MAX],
+        Category::Aerodynamic->value => [RATING_MAX],
+        Category::Shiny->value => [RATING_MAX],
+    ];
+
+    foreach($workflows as $workflow) {
+        foreach ($workflow->rules as $rule) {
+            $matcher = $rule->matcher;
+
+            if (null === $matcher) {
+                continue;
+            }
+
+            $breakpoints[$matcher->category->value][] = match($matcher->compareOperation) {
+                // a < 4 => [1...3], [4...4000]
+                // a > 2 => [1...2], [3], [4...4000]
+                Operation::GreaterThan => $matcher->compareValue,
+                Operation::LessThan => $matcher->compareValue - 1,
+            };
+        }
+    }
+
+    foreach ($breakpoints as &$breakpointsInCategory) {
+        sort($breakpointsInCategory);
+    }
+
+    print_r(array_map('count', $breakpoints));
+
+    return $breakpoints;
+}
+
 class Workflow
 {
     private const RULE_SEPARATOR = ',';
 
     public function __construct(
         /** @var Rule[] $rules */
-        private readonly array $rules,
+        public readonly array $rules,
     ) {
     }
 
@@ -126,10 +203,10 @@ class Workflow
 class Part
 {
     public function __construct(
-        public readonly int $extremelyCool,
-        public readonly int $musical,
-        public readonly int $aerodynamic,
-        public readonly int $shiny,
+        public readonly int $extremelyCoolRating,
+        public readonly int $musicalRating,
+        public readonly int $aerodynamicRating,
+        public readonly int $shinyRating,
     ) {
     }
 
@@ -151,8 +228,8 @@ class Rule
     private const NEXT_WORKFLOW_SEPARATOR = ':';
 
     public function __construct(
-        private readonly ?Matcher $matcher,
-        private readonly string $nextWorkflow,
+        public readonly ?Matcher $matcher,
+        public readonly string $nextWorkflow,
     ) {
     }
 
@@ -183,9 +260,9 @@ class Rule
 class Matcher
 {
     public function __construct(
-        private readonly Category $category,
-        private readonly Operation $compareOperation,
-        private readonly int $compareValue,
+        public readonly Category $category,
+        public readonly Operation $compareOperation,
+        public readonly int $compareValue,
     ) {
     }
 
@@ -201,10 +278,10 @@ class Matcher
     public function matches(Part $part): bool
     {
         $partRating = match ($this->category) {
-            Category::ExtremelyCool => $part->extremelyCool,
-            Category::Musical => $part->musical,
-            Category::Aerodynamic => $part->aerodynamic,
-            Category::Shiny => $part->shiny,
+            Category::ExtremelyCool => $part->extremelyCoolRating,
+            Category::Musical => $part->musicalRating,
+            Category::Aerodynamic => $part->aerodynamicRating,
+            Category::Shiny => $part->shinyRating,
         };
 
         return match ($this->compareOperation) {
