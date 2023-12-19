@@ -14,7 +14,7 @@ enum Operation: string
     case GreaterThan = '>';
 }
 
-const DEFAULT_WORKFLOW = 'in';
+const DEFAULT_WORKFLOW_NAME = 'in';
 const ACCEPT = 'A';
 const REJECT = 'R';
 
@@ -83,7 +83,7 @@ function readParts($fp): iterable
 /** @param Workflow[] $workflows */
 function canAccept(Part $part, array $workflows): bool
 {
-    $workflowName = DEFAULT_WORKFLOW;
+    $workflowName = DEFAULT_WORKFLOW_NAME;
 
     while (!in_array($workflowName, [ACCEPT, REJECT])) {
         $workflowName = $workflows[$workflowName]->run($part);
@@ -93,76 +93,87 @@ function canAccept(Part $part, array $workflows): bool
 }
 
 /** @param Workflow[] $workflows */
-function calculateAcceptableCombos(array $workflows): int
-{
-    $breakpoints = getRuleBreakpoints($workflows);
-    $lastExtremelyCoolRating = $initialLastRating = RATING_MIN - 1;
+function calculateAcceptableCombos(
+    array $workflows,
+    ?Interval $allowedExtremelyCoolRatingInterval = null,
+    ?Interval $allowedMusicalRatingInterval = null,
+    ?Interval $allowedAerodynamicRatingInterval = null,
+    ?Interval $allowedShinyRatingInterval = null,
+    string $workflowName = DEFAULT_WORKFLOW_NAME,
+): int {
+    if (null === $allowedExtremelyCoolRatingInterval) {
+        $allowedExtremelyCoolRatingInterval = new Interval(RATING_MIN, RATING_MAX);
+    }
+
+    if (null === $allowedMusicalRatingInterval) {
+        $allowedMusicalRatingInterval = new Interval(RATING_MIN, RATING_MAX);
+    }
+
+    if (null === $allowedAerodynamicRatingInterval) {
+        $allowedAerodynamicRatingInterval = new Interval(RATING_MIN, RATING_MAX);
+    }
+
+    if (null === $allowedShinyRatingInterval) {
+        $allowedShinyRatingInterval = new Interval(RATING_MIN, RATING_MAX);
+    }
+
+    $nextExtremelyCoolRatingInterval = $allowedExtremelyCoolRatingInterval;
+    $nextMusicalRatingInterval = $allowedMusicalRatingInterval;
+    $nextAerodynamicRatingInterval = $allowedAerodynamicRatingInterval;
+    $nextShinyRatingInterval = $allowedShinyRatingInterval;
+
     $acceptableCombos = 0;
 
-    foreach ($breakpoints[Category::ExtremelyCool->value] as $extremelyCoolRating) {
-        $lastMusicalRating = $initialLastRating;
+    foreach ($workflows[$workflowName]->rules as $rule) {
+        $allowedExtremelyCoolRatingInterval = $nextExtremelyCoolRatingInterval;
+        $allowedMusicalRatingInterval = $nextMusicalRatingInterval;
+        $allowedAerodynamicRatingInterval = $nextAerodynamicRatingInterval;
+        $allowedShinyRatingInterval = $nextShinyRatingInterval;
 
-        foreach ($breakpoints[Category::Musical->value] as $musicalRating) {
-            $lastAerodynamicRating = $initialLastRating;
-
-            foreach ($breakpoints[Category::Aerodynamic->value] as $aerodynamicRating) {
-                $lastShinyRating = $initialLastRating;
-
-                foreach ($breakpoints[Category::Shiny->value] as $shinyRating) {
-                    if (canAccept(new Part($extremelyCoolRating, $musicalRating, $aerodynamicRating, $shinyRating), $workflows)) {
-                        $acceptableCombos += ($extremelyCoolRating - $lastExtremelyCoolRating) * ($musicalRating - $lastMusicalRating)
-                            * ($aerodynamicRating - $lastAerodynamicRating) * ($shinyRating - $lastShinyRating);
-                    }
-
-                    $lastShinyRating = $shinyRating;
-                }
-
-                $lastAerodynamicRating = $aerodynamicRating;
-            }
-
-            $lastMusicalRating = $musicalRating;
+        if (in_array(null, [$allowedExtremelyCoolRatingInterval, $allowedMusicalRatingInterval, $allowedAerodynamicRatingInterval, $allowedShinyRatingInterval])) {
+            continue;
         }
 
-        $lastExtremelyCoolRating = $extremelyCoolRating;
+        if (null !== $rule->matcher) {
+            match ($rule->matcher->category) {
+                Category::ExtremelyCool => list($allowedExtremelyCoolRatingInterval, $nextExtremelyCoolRatingInterval) =
+                    $allowedExtremelyCoolRatingInterval->splitByMatcher($rule->matcher),
+                Category::Musical => list($allowedMusicalRatingInterval, $nextMusicalRatingInterval) =
+                    $allowedMusicalRatingInterval->splitByMatcher($rule->matcher),
+                Category::Aerodynamic => list($allowedAerodynamicRatingInterval, $nextAerodynamicRatingInterval) =
+                    $allowedAerodynamicRatingInterval->splitByMatcher($rule->matcher),
+                Category::Shiny => list($allowedShinyRatingInterval, $nextShinyRatingInterval) =
+                    $allowedShinyRatingInterval->splitByMatcher($rule->matcher),
+            };
+        }
+
+        if (in_array(null, [$allowedExtremelyCoolRatingInterval, $allowedMusicalRatingInterval, $allowedAerodynamicRatingInterval, $allowedShinyRatingInterval])) {
+            continue;
+        }
+
+        if (REJECT === $rule->nextWorkflow) {
+            continue;
+        }
+
+        if (ACCEPT === $rule->nextWorkflow) {
+            $acceptableCombos += ($allowedExtremelyCoolRatingInterval->max - $allowedExtremelyCoolRatingInterval->min + 1)
+                * ($allowedMusicalRatingInterval->max - $allowedMusicalRatingInterval->min + 1)
+                * ($allowedAerodynamicRatingInterval->max - $allowedAerodynamicRatingInterval->min + 1)
+                * ($allowedShinyRatingInterval->max - $allowedShinyRatingInterval->min + 1);
+            continue;
+        }
+
+        $acceptableCombos += calculateAcceptableCombos(
+            $workflows,
+            $allowedExtremelyCoolRatingInterval,
+            $allowedMusicalRatingInterval,
+            $allowedAerodynamicRatingInterval,
+            $allowedShinyRatingInterval,
+            $rule->nextWorkflow,
+        );
     }
 
     return $acceptableCombos;
-}
-
-/** @param Workflow[] $workflows */
-function getRuleBreakpoints(array $workflows): array
-{
-    $breakpoints = [
-        Category::ExtremelyCool->value => [RATING_MAX],
-        Category::Musical->value => [RATING_MAX],
-        Category::Aerodynamic->value => [RATING_MAX],
-        Category::Shiny->value => [RATING_MAX],
-    ];
-
-    foreach($workflows as $workflow) {
-        foreach ($workflow->rules as $rule) {
-            $matcher = $rule->matcher;
-
-            if (null === $matcher) {
-                continue;
-            }
-
-            $breakpoints[$matcher->category->value][] = match($matcher->compareOperation) {
-                // a < 4 => [1...3], [4...4000]
-                // a > 2 => [1...2], [3], [4...4000]
-                Operation::GreaterThan => $matcher->compareValue,
-                Operation::LessThan => $matcher->compareValue - 1,
-            };
-        }
-    }
-
-    foreach ($breakpoints as &$breakpointsInCategory) {
-        sort($breakpointsInCategory);
-    }
-
-    print_r(array_map('count', $breakpoints));
-
-    return $breakpoints;
 }
 
 class Workflow
@@ -287,6 +298,35 @@ class Matcher
         return match ($this->compareOperation) {
             Operation::GreaterThan => $partRating > $this->compareValue,
             Operation::LessThan => $partRating < $this->compareValue,
+        };
+    }
+}
+
+class Interval
+{
+    public function __construct(
+        public readonly int $min,
+        public readonly int $max,
+    ) {
+    }
+
+    public function splitByMatcher(?Matcher $matcher): array
+    {
+        if (null === $matcher) {
+            return [$this, null];
+        }
+
+        return match ($matcher->compareOperation) {
+            Operation::GreaterThan => match (true) {
+                $matcher->compareValue < $this->min => [$this, null],
+                $matcher->compareValue > $this->max => [null, $this],
+                default => [new self($matcher->compareValue + 1, $this->max), new self($this->min, $matcher->compareValue)],
+            },
+            Operation::LessThan => match (true) {
+                $matcher->compareValue > $this->max => [$this, null],
+                $matcher->compareValue < $this->min => [null, $this],
+                default => [new self($this->min, $matcher->compareValue - 1), new self($matcher->compareValue, $this->max)],
+            }
         };
     }
 }
