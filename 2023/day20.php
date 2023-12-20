@@ -270,15 +270,7 @@ class Conjunction extends Module
 
         $this->lastPulses[$source->name] = $pulse;
 
-        foreach ($this->lastPulses as $lastPulse) {
-            if (Pulse::Low === $lastPulse) {
-                $this->send(Pulse::High);
-
-                return;
-            }
-        }
-
-        $this->send(Pulse::Low);
+        $this->send(in_array(Pulse::Low, $this->lastPulses, true) ? Pulse::High : Pulse::Low);
     }
 }
 
