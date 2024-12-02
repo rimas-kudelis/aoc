@@ -94,4 +94,3 @@ for report in reports:
 print('Safe reports:', len(safe_reports))
 print('Safe reports with problem dampener on:', len(dampened_safe_reports) + len(safe_reports))
 print('Unsafe reports:', len(unsafe_reports))
-
