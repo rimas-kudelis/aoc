@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 import re
 from argparse import ArgumentParser
 
-parser = ArgumentParser(description='Calculate disance and similarity between location lists for AoC 2024 day 1.')
+parser = ArgumentParser(description='Calculate distance and similarity between location lists for AoC 2024 day 1.')
 parser.add_argument('INPUT_FILE', help='Locations input file')
 
 args = parser.parse_args()
