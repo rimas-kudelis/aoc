@@ -50,16 +50,17 @@ def count_words(char_matrix, word):
     if len(word) < 2:
         raise ValueError('The word that is being counted must have at least 2 characters.')
 
+    directions = [(line, char) for line in [-1, 0, 1] for char in [-1, 0, 1] if line != 0 or char != 0]
+
+    # If the word is a palindrome, only check half of the possible directions to prevent counting words twice and save some time.
+    if word == word[::-1]:
+        directions = [direction for direction in directions if direction[0] > 0 or direction[0] == 0 and direction[1] > 0]
+
     for start_line_index in range(len(char_matrix)):
         for start_char_index in range(len(char_matrix[0])):
-            for line_dir in [-1, 0, 1]:
-                for char_dir in [-1, 0, 1]:
-                    if word_found_in_dir(char_matrix, word, start_line_index, start_char_index, line_dir, char_dir):
-                        found_word_count += 1
-
-    # If the word is a palindrome, each occurrence has been counted twice.
-    if word == word[::-1]:
-        return int(found_word_count / 2)
+            for direction in directions:
+                if word_found_in_dir(char_matrix, word, start_line_index, start_char_index, direction[0], direction[1]):
+                    found_word_count += 1
 
     return found_word_count
 
@@ -79,7 +80,7 @@ def count_x_words(char_matrix, word):
             found_word_mid_here = 0
             # Track checked directions so we don't count the same word twice if it's a palindrome.
             # This is also an optimization: if the word is not a palindrome and word_start_reversed
-            # is found in direction (X, Y), that means that searching for the word_start_revered
+            # is found in direction (X, Y), that means that searching for word_start_reversed
             # in direction (-X, -Y) is pointless, because word_end won't match what is in direction (X, Y) anyway.
             checked_dirs = []
             for line_dir in [-1, 1]:
