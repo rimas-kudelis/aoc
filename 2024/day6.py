@@ -6,7 +6,10 @@ import copy
 
 
 class LoopDetected(Exception):
-    pass
+    def __init__(self, message, tile, direction):
+        super().__init__(message)
+        self.tile = tile
+        self.direction = direction
 
 
 class GuardDirection(Enum):
@@ -22,27 +25,29 @@ class MapTile(Enum):
 
 
 def get_tile_from_char(tile_char):
+    is_start_tile = tile_char not in [MapTile.UNVISITED.value, MapTile.OBSTRUCTION.value]
     return {
         'obstruction': tile_char == MapTile.OBSTRUCTION.value,
-        'visited': tile_char not in [MapTile.UNVISITED.value, MapTile.OBSTRUCTION.value],
-        'exited_up': False,
-        'exited_left': False,
-        'exited_down': False,
-        'exited_right': False,
+        'visited': is_start_tile,
+        'entered_up': None,
+        'entered_left': None,
+        'entered_down': None,
+        'entered_right': None,
         'could_loop': False,
+        'start': is_start_tile,
     }
 
 
-def get_exited_tile_key_from_direction(direction):
+def get_entered_tile_key_from_direction(direction):
     match direction:
         case GuardDirection.UP:
-            return 'exited_up'
+            return 'entered_up'
         case GuardDirection.DOWN:
-            return 'exited_down'
+            return 'entered_down'
         case GuardDirection.LEFT:
-            return 'exited_left'
+            return 'entered_left'
         case GuardDirection.RIGHT:
-            return 'exited_right'
+            return 'entered_right'
 
 
 def invert_direction(direction):
@@ -55,22 +60,6 @@ def invert_direction(direction):
             return GuardDirection.RIGHT
         case GuardDirection.RIGHT:
             return GuardDirection.LEFT
-
-
-def get_char_from_tile(tile):
-    before, after = ('\033[31m', '\033[0;39m') if tile['could_loop'] else ('', '')
-    if tile['obstruction']:
-        char = '#'
-    elif (tile['exited_up'] or tile['exited_down']) and (tile['exited_left'] or tile['exited_right']):
-        char = '+'
-    elif tile['exited_up'] or tile['exited_down']:
-        char = '|'
-    elif tile['exited_left'] or tile['exited_right']:
-        char = '-'
-    else:
-        char = '.'
-
-    return before + char + after
 
 
 def read_area_map(filename):
@@ -93,9 +82,9 @@ def read_area_map(filename):
                         start_position = len(area_map), col
                         start_direction = dir
 
-            map_line = list(map(get_tile_from_char, list(line.strip())))
+            map_row = list(map(get_tile_from_char, list(line.strip())))
 
-            area_map.append(map_line)
+            area_map.append(map_row)
         print_map(area_map)
 
     return area_map, start_position, start_direction
@@ -134,43 +123,77 @@ def get_try_position(start_position, direction):
             return start_position[0], start_position[1] - 1
 
 
-def move_guard(area_map, start_position, direction, test_if_loops=False):
+def move_guard(area_map, start_position, direction):
     for iteration in range(4):
-        exited_key = get_exited_tile_key_from_direction(direction)
-        if area_map[start_position[0]][start_position[1]][exited_key]:
-            raise LoopDetected('Been here, done this!')
         next_position = get_try_position(start_position, direction)
         next_tile = get_map_tile(area_map, next_position)
         if next_tile is None:
-            return None, direction, False
+            return None, direction
         if not next_tile['obstruction']:
-            could_loop = False
-            if test_if_loops and not next_tile['visited']:
-                fake_map = copy.deepcopy(area_map)
-                fake_map[next_position[0]][next_position[1]] = get_tile_from_char(MapTile.OBSTRUCTION.value)
-                try:
-                    simulate_guard_path(fake_map, start_position, direction, False)
-                except LoopDetected:
-                    could_loop = True
-            return next_position, direction, could_loop
+            entered_key = get_entered_tile_key_from_direction(direction)
+            if area_map[next_position[0]][next_position[1]][entered_key]:
+                raise LoopDetected('Been there, done that!', area_map[next_position[0]][next_position[1]], direction)
+            return next_position, direction
         direction = get_next_direction(direction)
 
     raise ValueError('Cannot move anywhere from current position.')
 
 
-def simulate_guard_path(area_map, start_position, start_direction, test_if_loops=True):
+def simulate_guard_path(area_map, start_position, start_direction, start_at_step = 1):
     while True:
-        next_position, next_direction, could_loop = move_guard(area_map, start_position, start_direction, test_if_loops)
+        next_position, next_direction = move_guard(area_map, start_position, start_direction)
         area_map[start_position[0]][start_position[1]]['visited'] = True
-        exit_direction = get_exited_tile_key_from_direction(next_direction or start_direction)
-        area_map[start_position[0]][start_position[1]][exit_direction] = True
+        entered_key = get_entered_tile_key_from_direction(next_direction or start_direction)
         if next_position is None:
             break
-        if could_loop:
-            area_map[next_position[0]][next_position[1]]['could_loop'] = True
+        area_map[next_position[0]][next_position[1]][entered_key] = start_at_step
+        start_at_step += 1
         start_position, start_direction = next_position, next_direction
 
     return area_map
+
+
+def mark_loopable_tiles(area_map):
+    for row_index, row in enumerate(area_map):
+        for tile_index, tile in enumerate(row):
+            if not tile['visited'] or tile['start']:
+                continue
+            entered_from_row, entered_from_tile, enter_direction = get_entered_data(row_index, tile_index, tile)
+            fake_map = copy.deepcopy(area_map)
+            fake_map[row_index][tile_index] = get_tile_from_char(MapTile.OBSTRUCTION.value)
+            starting_step = tile[get_entered_tile_key_from_direction(enter_direction)]
+            # print('fake')
+            # print_map(fake_map)
+            # print(starting_step, (entered_from_row, entered_from_tile), enter_direction, tile[get_entered_tile_key_from_direction(enter_direction)])
+            try:
+                simulate_guard_path(fake_map, (entered_from_row, entered_from_tile), enter_direction, starting_step)
+            except LoopDetected as e:
+                if e.tile[get_entered_tile_key_from_direction(e.direction)] < starting_step:
+                    tile['could_loop'] = True
+                # print(tile, e.tile, enter_direction, e.direction)
+
+    return area_map
+
+
+def get_entered_data(row_index, tile_index, tile):
+    enter_direction = enter_index = None
+
+    for direction in GuardDirection:
+        tile_key = get_entered_tile_key_from_direction(direction)
+        if tile[tile_key] is None:
+            continue
+        if tile[tile_key] <= (enter_index or tile[tile_key]):
+            enter_direction, enter_index = direction, tile[tile_key]
+
+    match enter_direction:
+        case GuardDirection.UP:
+            return row_index + 1, tile_index, enter_direction
+        case GuardDirection.DOWN:
+            return row_index - 1, tile_index, enter_direction
+        case GuardDirection.LEFT:
+            return row_index, tile_index + 1, enter_direction
+        case GuardDirection.RIGHT:
+            return row_index, tile_index - 1, enter_direction
 
 
 def count_tiles(area_map):
@@ -189,12 +212,29 @@ def print_map(area_map):
         print(''.join(map(get_char_from_tile, line)))
 
 
+def get_char_from_tile(tile):
+    before, after = ('\033[31m', '\033[0;39m') if tile['could_loop'] else ('', '')
+    if tile['obstruction']:
+        char = '#'
+    elif (tile['entered_up'] or tile['entered_down']) and (tile['entered_left'] or tile['entered_right']):
+        char = '+'
+    elif tile['entered_up'] or tile['entered_down']:
+        char = '|'
+    elif tile['entered_left'] or tile['entered_right']:
+        char = '-'
+    else:
+        char = '.'
+
+    return before + char + after
+
+
 parser = ArgumentParser(description='Figure out guard\'s path and their looping options for AoC 2024 day 6.')
 parser.add_argument('INPUT_FILE', help='Word search puzzle input')
 args = parser.parse_args()
 
 area_map, start_position, start_direction = read_area_map(args.INPUT_FILE)
 traced_area_map = simulate_guard_path(area_map, start_position, start_direction)
+traced_area_map = mark_loopable_tiles(traced_area_map)
 
 print('--')
 print_map(traced_area_map)
