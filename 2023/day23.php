@@ -13,7 +13,7 @@ $map = readMap($fp);
 $calculator = new HikeCalculator();
 
 echo 'Longest trail (part 1): ' . ($calculator->findLongestTrail($map, false) ?? 'not found!') . PHP_EOL;
-echo 'Longest trail (part 2): ' . ($calculator->findLongestTrail($map, true) ?? 'not found!') . PHP_EOL;
+//echo 'Longest trail (part 2): ' . ($calculator->findLongestTrail($map, true) ?? 'not found!') . PHP_EOL;
 
 echo 'Calculation took ' . microtime(true) - $start . ' seconds.' . PHP_EOL;
 
@@ -40,12 +40,17 @@ class HikeCalculator
     private const SLOPE_E = '>';
     private const SLOPE_W = '<';
 
+    private array $cachedTrails = [];
+
     public function findLongestTrail(array $map, bool $allowClimbingSlopes = false): ?int
     {
         [$startX, $startY] = $this->findStartTile($map);
         [$endX, $endY] = $this->findEndTile($map);
+        $visited = array_fill(0, count($map), []);
 
-        return $this->findLongestTrailFromAToB($map, [], $startX, $startY, $endX, $endY, $allowClimbingSlopes);
+        $this->cachedTrails = [];
+
+        return $this->findLongestTrailFromAToB($map, $visited, $startX, $startY, $endX, $endY, $allowClimbingSlopes);
     }
 
     private function findLongestTrailFromAToB(
@@ -76,43 +81,56 @@ class HikeCalculator
         }
 
         $visited[$startY][$startX] = true;
+        ksort ($visited[$startY]);
+//
+//        // When A→B→C→D and A→C→B→D are both valid already visited paths, we can calculate the longest trail length
+//        // just once for the both of them.
+//        $cacheKey = md5(json_encode($visited));
+//        $cacheKey = implode(';', array_map(static fn(array $row): string => implode(';', $row), $visited));
+//        echo $cacheKey;
+//        $cacheKey = var_export($visited, true);
+//        if (!isset($this->cachedTrails[$cacheKey])) {
+            $moves = [
+                'north' => [$startX, $startY - 1],
+                'east' => [$startX + 1, $startY],
+                'south' => [$startX, $startY + 1],
+                'west' => [$startX - 1, $startY],
+            ];
 
-        $moves = [
-            'north' => [$startX, $startY - 1],
-            'east' => [$startX + 1, $startY],
-            'south' => [$startX, $startY + 1],
-            'west' => [$startX - 1, $startY],
-        ];
-
-        if (!$allowClimbingSlopes) {
-            $moves = match ($tile) {
-                self::SLOPE_N => [$moves['north']],
-                self::SLOPE_S => [$moves['south']],
-                self::SLOPE_E => [$moves['east']],
-                self::SLOPE_W => [$moves['west']],
-                default => $moves,
-            };
-        }
-
-        $longestTrail = null;
-
-        foreach ($moves as [$nextX, $nextY]) {
-            $nextLongestTrail = $this->findLongestTrailFromAToB(
-                $map,
-                $visited,
-                $nextX,
-                $nextY,
-                $endX,
-                $endY,
-                $allowClimbingSlopes,
-            );
-
-            if (null !== $nextLongestTrail) {
-                $longestTrail = max($longestTrail, 1 + $nextLongestTrail);
+            if (!$allowClimbingSlopes) {
+                $moves = match ($tile) {
+                    self::SLOPE_N => [$moves['north']],
+                    self::SLOPE_S => [$moves['south']],
+                    self::SLOPE_E => [$moves['east']],
+                    self::SLOPE_W => [$moves['west']],
+                    default => $moves,
+                };
             }
-        }
 
-        return $longestTrail;
+            $longestTrail = null;
+
+            foreach ($moves as [$nextX, $nextY]) {
+                $nextLongestTrail = $this->findLongestTrailFromAToB(
+                    $map,
+                    $visited,
+                    $nextX,
+                    $nextY,
+                    $endX,
+                    $endY,
+                    $allowClimbingSlopes,
+                );
+
+                if (null !== $nextLongestTrail) {
+                    $longestTrail = max($longestTrail, 1 + $nextLongestTrail);
+                }
+            }
+
+            return $longestTrail;
+//
+//            $this->cachedTrails[$cacheKey] = $longestTrail;
+//        }
+//
+//        return $this->cachedTrails[$cacheKey];
     }
 
     private function findStartTile(array $map): array

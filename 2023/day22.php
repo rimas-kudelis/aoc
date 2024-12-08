@@ -13,7 +13,7 @@ if (false === $fp) {
 }
 
 $initialLightBeamMapCache = [];
-$map = readMap($fp);
+$map = readBrickSnapshot($fp);
 $calculator = new StepCalculator();
 
 echo 'Total visitable plots (part 1): ' . $calculator->countPossibilities($map, STEPS_PART_1) . PHP_EOL;
@@ -21,7 +21,7 @@ echo 'Total visitable plots (part 1): ' . $calculator->countPossibilities($map, 
 
 echo 'Calculation took ' . microtime(true) - $start . ' seconds.' . PHP_EOL;
 
-function readMap($fp): array
+function readBrickSnapshot($fp): array
 {
     $map = [];
 
@@ -159,5 +159,25 @@ class StepCalculator
                     ),
                 ) . PHP_EOL;
         }
+    }
+}
+
+
+class Brick
+{
+    public function __construct(
+        private int $x1,
+        private int $y1,
+        private int $z1,
+        private int $x2,
+        private int $y2,
+        private int $z2,
+    ) {
+    }
+
+    public function fall(int $newZ1): void
+    {
+        $this->z2 = $this->z2 - $this->z1 + $newZ1;
+        $this->z1 = $newZ1;
     }
 }

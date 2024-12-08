@@ -17,6 +17,8 @@ if (false === $fp) {
 $instructions = getInstructions($fp);
 $map = digLagoon($instructions);
 
+//printMap($map);
+
 printf('Lagoon size is %d cubic meters (part 1).' . PHP_EOL, calculateLagoonSize($map));
 
 $instructions = fixInstructions($instructions);
@@ -47,7 +49,12 @@ function getInstructions($fp): array
 function digLagoon(array $instructions): array
 {
     $trenchMap = $map = digTrench($instructions);
+
+    printMap($trenchMap);
+
     $map = digLagoonInterior($trenchMap);
+
+    printMap($map);
 
     return $map;
 }
@@ -219,4 +226,49 @@ function fixInstructions(array $instructions): array
         ],
         $instructions,
     );
+}
+
+function debugMap(array $map): void
+{
+    return;
+    foreach ($map as $x => $row) {
+        echo $x . ': ';
+        foreach ($row as $y => $colData) {
+            printf('[%d %d×%d, %s] ', $y, $colData[DOWN], $colData[RIGHT], $colData[DUG] ? '#' : '.');
+        }
+
+        echo PHP_EOL;
+    }
+
+    echo PHP_EOL;
+}
+
+function printMap(array $map): void
+{
+    for ($row = 0; $row < count($map); $row += 4) {
+        for ($column = 0; $column < count($map[$row]); $column += 2) {
+            $codePoint = 0x2800;
+
+            foreach ([
+                         ($map[$row][$column][DUG] ?? false) ? 1 : 0,
+                         ($map[$row + 1][$column][DUG] ?? false) ? 1 : 0,
+                         ($map[$row + 2][$column][DUG] ?? false) ? 1 : 0,
+                         ($map[$row][$column + 1][DUG] ?? false) ? 1 : 0,
+                         ($map[$row + 1][$column + 1][DUG] ?? false) ? 1 : 0,
+                         ($map[$row + 2][$column + 1][DUG] ?? false) ? 1 : 0,
+                         ($map[$row + 3][$column][DUG] ?? false) ? 1 : 0,
+                         ($map[$row + 3][$column + 1][DUG] ?? false) ? 1 : 0,
+                     ] as $index => $dot) {
+                if (1 === $dot) {
+                    $codePoint += (2 ** $index);
+                }
+            }
+
+            echo mb_chr($codePoint, 'UTF-8');
+        }
+
+        echo PHP_EOL;
+    }
+
+    echo PHP_EOL;
 }

@@ -1,0 +1,62 @@
+&jq -> rx // rx gauna tik HI
+
+&lr -> jq // jq gauna tik LO
+&nl -> jq // jq gauna tik LO
+&gt -> jq // jq gauna tik LO
+&vr -> jq // jq gauna tik LO
+
+&ns -> pb, lr, br, fp, gp, gv, jl // lr gauna tik HI
+&kz -> zf, nl, df, zn, vx, nh // nl gauna tik HI
+&hh -> vs, kq, gt, nc, zd, fm // gt gauna tik HI
+&ck -> tp, vr, pc, tg, mr, tf, rg // vr gauna tik HI
+
+%lj -> ns
+%rb -> ns, mf
+%mf -> ns, gp
+%xv -> ns, kh
+%jz -> lj, ns
+%br -> gv, ns
+%kh -> ns, jz
+
+%vb -> ck
+%pb -> xv
+%hj -> lk, hh
+%zd -> fm
+%hr -> hh
+%rg -> tp
+%tf -> ck, tx
+%pp -> vs, hh
+%vx -> df
+%tx -> mr, ck
+%nh -> vx
+%sc -> ck, vb
+%cc -> ck, rj
+%tn -> kz, lt
+%fp -> rb
+%hc -> kz
+%pc -> vh
+broadcaster -> tf, br, zn, nc
+%zn -> kz, fv
+%nc -> hh, hj
+%rj -> ck, sc
+%tg -> cc
+%gp -> pb
+%jl -> fp
+%gv -> jl
+%gf -> zf, kz
+%df -> gf
+%kq -> pp
+%lk -> hh, zd
+%vs -> bp
+%lt -> ls, kz
+%mr -> rg
+%zf -> qf
+%rk -> hh, hr
+%qf -> kz, tn
+%rv -> rk, hh
+%ls -> hc, kz
+%fm -> kq
+%fv -> nh, kz
+%tp -> pc
+%vh -> ck, tg
+%bp -> hh, rv
