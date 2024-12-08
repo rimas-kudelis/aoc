@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 
 def read_map(filename):
     with open(filename) as f:
-        area_map = [[char for char in line.strip()] for line in f]
+        area_map = [[char for char in line.strip()] for line in f if line.strip() != '']
 
     return area_map
 
@@ -23,7 +23,7 @@ def collect_antennas_by_frequency(map):
     return antennas
 
 
-def count_antinodes(area_map, account_for_resonant_harmonics=False):
+def collect_antinodes(area_map, account_for_resonant_harmonics=False):
     map_rows = len(area_map)
     map_cols = len(area_map[0])
     antinodes = set()
@@ -52,7 +52,7 @@ def count_antinodes(area_map, account_for_resonant_harmonics=False):
                         antinodes.add(antinode)
                         antinode = (antinode[0] + row_diff, antinode[1] + col_diff)
 
-    return len(antinodes)
+    return antinodes
 
 
 parser = ArgumentParser(description='Count trasmission antinodes for AoC day 8.')
@@ -61,5 +61,5 @@ args = parser.parse_args()
 
 area_map = read_map(args.INPUT_FILE)
 
-print('Initially calculated number of antinodes is:', count_antinodes(area_map, False))
-print('Corrected number of antinodes is:', count_antinodes(area_map, True))
+print('Initially calculated number of antinodes is:', len(collect_antinodes(area_map, False)))
+print('Corrected number of antinodes is:', len(collect_antinodes(area_map, True)))
