@@ -5,9 +5,7 @@ from argparse import ArgumentParser
 
 def read_disk_map(filename):
     with open(filename) as f:
-        disk_map = [[int(char) for char in line.strip()] for line in f if line.strip() != ''][0]
-
-    return disk_map
+        return [int(char) for char in f.read().strip()]
 
 
 def compact_with_fragmentation(disk_map):
