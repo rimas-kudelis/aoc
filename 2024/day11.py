@@ -2,7 +2,7 @@
 
 from argparse import ArgumentParser
 
-change_map = {'0': ['1']}
+after_change_count_map = {('0', 1): 1}
 
 
 def read_stone_arrangement(filename):
@@ -10,22 +10,24 @@ def read_stone_arrangement(filename):
         return [mark for mark in f.read().strip().split(' ')]
 
 
-def blink(stone_arrangement):
-    mutated_arrangement = []
+def count_stones_after_blinking(stone_arrangement, number_of_times=1):
+    stone_count = 0
+
     for stone in stone_arrangement:
-        if stone not in change_map:
-            change_map[stone] = get_mutation_result(stone)
+        if (stone, number_of_times) not in after_change_count_map:
+            changed = get_mutation_result(stone)
+            after_change_count_map[(stone, number_of_times)] = len(changed) if number_of_times == 1 \
+                else count_stones_after_blinking(changed, number_of_times - 1)
 
-        mutated_arrangement.extend(change_map[stone])
+        stone_count += after_change_count_map[(stone, number_of_times)]
 
-    return mutated_arrangement
+    return stone_count
 
 
 def get_mutation_result(stone):
-    if (digits := len(stone)) % 2 == 0:
-        return [stone[:digits // 2], str(int(stone[digits // 2:]))]
-
-    return [str(int(stone) * 2024)]
+    return ['1'] if stone == '0' \
+        else [stone[:digits // 2], str(int(stone[digits // 2:]))] if (digits := len(stone)) % 2 == 0 \
+        else [str(int(stone) * 2024)]
 
 
 parser = ArgumentParser(description='Simulate the behaviour of physics-defying stones for AoC day 11.')
@@ -34,7 +36,7 @@ args = parser.parse_args()
 
 stone_arrangement = read_stone_arrangement(args.INPUT_FILE)
 
-for blink_number in range(25):
-    stone_arrangement = blink(stone_arrangement)
-
-print('Stones after 25 blinks:', len(stone_arrangement))
+stone_count = count_stones_after_blinking(stone_arrangement, 25)
+print('Stones after 25 blinks:', stone_count)
+stone_count = count_stones_after_blinking(stone_arrangement, 75)
+print('Stones after 75 blinks:', stone_count)
