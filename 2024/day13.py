@@ -21,7 +21,7 @@ def read_claw_machine_configuration(filename):
 
 
 def calculate_minimum_tokens_to_win(claw_machines, fix_calculation=False):
-    tokens = tokens_corrected = 0
+    tokens = 0
 
     for machine in claw_machines:
         if solution := solve_machine(machine, fix_calculation):
