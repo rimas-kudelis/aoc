@@ -32,8 +32,8 @@ def calculate_minimum_tokens_to_win(claw_machines, fix_calculation=False):
 
 def solve_claw_machine(machine, fix_calculation):
     left = numpy.array([[machine['ax'], machine['bx']], [machine['ay'], machine['by']]])
-    right = numpy.array([10000000000000 + machine['px'], 10000000000000 + machine['py']]) if fix_calculation \
-        else numpy.array([machine['px'], machine['py']])
+    right = numpy.array([machine['px'], machine['py']]) if not fix_calculation \
+        else numpy.array([10000000000000 + machine['px'], 10000000000000 + machine['py']])
 
     # Somehow numpy returns quite significantly imprecise floats, so I have to round them.
     (a, b) = numpy.round(numpy.linalg.solve(left, right), 4)
