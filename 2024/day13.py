@@ -34,10 +34,9 @@ def solve_claw_machine(machine, fix_calculation):
     left = numpy.array([[machine['ax'], machine['bx']], [machine['ay'], machine['by']]])
     right = numpy.array([10000000000000 + machine['px'], 10000000000000 + machine['py']]) if fix_calculation \
         else numpy.array([machine['px'], machine['py']])
-    (a, b) = numpy.round(numpy.linalg.inv(left).dot(right), 4)
 
-    # Somehow numpy returns quite significantly imprecise floats. 
-    if abs(int(round(a)) - a) <= 0.0001 and abs(int(round(b)) - b) <= 0.0001:  # and a <= 100 and b <= 100:
+    (a, b) = numpy.round(numpy.linalg.solve(left, right), 4)
+    if int(a) == a and int(b) == b:  # and a <= 100 and b <= 100:
         return {'a': int(round(a)), 'b': int(round(b))}
 
     return None
