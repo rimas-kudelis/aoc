@@ -23,14 +23,14 @@ def read_claw_machine_configuration(filename):
 def calculate_minimum_tokens_to_win(claw_machines, fix_calculation=False):
     tokens = 0
 
-    for machine in claw_machines:
-        if solution := solve_machine(machine, fix_calculation):
+    for claw_machine in claw_machines:
+        if solution := solve_claw_machine(claw_machine, fix_calculation):
             tokens += 3 * solution['a'] + solution['b']
 
     return tokens
 
 
-def solve_machine(machine, fix_calculation):
+def solve_claw_machine(machine, fix_calculation):
     left = numpy.array([[machine['ax'], machine['bx']], [machine['ay'], machine['by']]])
     right = numpy.array([10000000000000 + machine['px'], 10000000000000 + machine['py']]) if fix_calculation \
         else numpy.array([machine['px'], machine['py']])
